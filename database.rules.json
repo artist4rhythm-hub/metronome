@@ -1,0 +1,54 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "rooms": {
+      "$code": {
+        ".read": "auth != null && $code.length === 6",
+        ".write": "auth != null && data.exists() && data.child('meta/leader').val() === auth.uid && !newData.exists()",
+
+        "meta": {
+          ".write": "auth != null && ((!data.exists() && newData.child('leader').val() === auth.uid) || (data.exists() && newData.exists() && (data.child('leader').val() === auth.uid || (data.child('leaderOnline').val() === false && root.child('rooms/' + $code + '/members/' + auth.uid).exists() && newData.child('leader').val() === auth.uid))))",
+          ".validate": "newData.hasChildren(['leader', 'leaderOnline'])",
+          "leader": { ".validate": "newData.isString() && newData.val().length < 64" },
+          "leaderOnline": { ".validate": "newData.isBoolean()" },
+          "created": { ".validate": "newData.isNumber()" },
+          "v": { ".validate": "newData.isNumber()" },
+          "$other": { ".validate": false }
+        },
+
+        "state": {
+          ".write": "auth != null && root.child('rooms/' + $code + '/meta/leader').val() === auth.uid",
+          ".validate": "newData.hasChildren(['running', 'seq'])"
+        },
+
+        "members": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid",
+            ".validate": "newData.hasChildren(['name', 'joined'])",
+            "name": { ".validate": "newData.isString() && newData.val().length <= 20" },
+            "joined": { ".validate": "newData.isNumber()" },
+            "role": { ".validate": "newData.isString() && newData.val().length <= 10" },
+            "err": { ".validate": "newData.isNumber()" },
+            "rtt": { ".validate": "newData.isNumber()" },
+            "$other": { ".validate": false }
+          }
+        },
+
+        "ping": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid",
+            ".validate": "newData.hasChildren(['t0', 'n']) && newData.child('t0').isNumber() && newData.child('n').isNumber()"
+          }
+        },
+
+        "pong": {
+          "$uid": {
+            ".write": "auth != null && (auth.uid === $uid || root.child('rooms/' + $code + '/meta/leader').val() === auth.uid)",
+            ".validate": "!newData.exists() || newData.hasChildren(['t0', 't1', 't2', 'n'])"
+          }
+        }
+      }
+    }
+  }
+}

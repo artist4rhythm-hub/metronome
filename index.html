@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>리듬 하우스 메트로놈</title>
+<meta name="theme-color" content="#123B2A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="RH 메트로놈">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=Space+Grotesk:wght@500;700&display=swap">
+<link rel="stylesheet" href="css/style.css">
+<style>
+  :root { box-sizing: border-box; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+</style>
+</head>
+<body>
+<!--APP-START-->
+<div class="app" id="app">
+  <header class="top">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 20 20"><path d="M10 2 L3.5 18 H16.5 Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><path d="M10 13 L14 5" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"></path></svg>
+      </span>
+      <span class="brand-text"><span class="brand-sub">RHYTHM HOUSE</span><span class="brand-name">메트로놈</span></span>
+    </div>
+    <div class="top-actions">
+      <button class="icon-btn pr-btn band-btn" id="btnBand" type="button" aria-label="합주 · 여러 기기 박 맞추기" aria-pressed="false">
+        <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><circle cx="6.5" cy="7" r="2.6" fill="none" stroke="currentColor" stroke-width="1.6"></circle><circle cx="13.5" cy="7" r="2.6" fill="none" stroke="currentColor" stroke-width="1.6"></circle><path d="M2 17 C2 13.5 4 12 6.5 12 C8 12 9.2 12.6 10 13.6 C10.8 12.6 12 12 13.5 12 C16 12 18 13.5 18 17" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path></svg>
+        <span class="pr-badge" id="bandBadge" hidden>1</span>
+      </button>
+      <button class="icon-btn pr-btn" id="btnPractice" type="button" aria-label="연습 모드 · 타이머" aria-pressed="false">
+        <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="11.5" r="6.5" fill="none" stroke="currentColor" stroke-width="1.6"></circle><path d="M10 11.5 V8 M8 2.5 H12 M15.2 5.8 L16.4 4.6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path></svg>
+        <span class="pr-badge" id="prBadge" hidden>연습</span>
+      </button>
+      <button class="icon-btn" id="btnSound" type="button" aria-label="소리 설정">
+        <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 8 H6 L10 4.5 V15.5 L6 12 H3 Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path><path d="M13 7.5 C14.5 9 14.5 11 13 12.5 M15.5 5.5 C18 8 18 12 15.5 14.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="home" id="viewHome">
+    <div class="dial" id="dial" role="slider" tabindex="0" aria-label="빠르기 다이얼" aria-valuemin="20" aria-valuemax="400" aria-valuenow="96">
+      <svg viewBox="-10 -10 300 300" aria-hidden="true">
+        <circle cx="140" cy="140" r="128" class="dial-track"></circle>
+        <circle cx="140" cy="140" r="128" class="dial-arc" id="dialArc" transform="rotate(-90 140 140)"></circle>
+        <circle cx="140" cy="12" r="15" class="dial-knob" id="dialKnob"></circle>
+      </svg>
+      <button class="dial-center" id="bpmBtn" type="button" aria-label="빠르기 직접 입력">
+        <span class="bpm-num" id="bpmNum">96</span>
+        <span class="bpm-unit"><span id="unitNote">♩</span> = BPM</span>
+        <span class="tempo-name" id="tempoName">Andante · 걷는 빠르기</span>
+      </button>
+    </div>
+
+    <div class="pendulum" id="pendulum" aria-hidden="true">
+      <svg viewBox="0 0 300 136">
+        <path class="pend-track" d="M 64.2 56 A 112 112 0 0 1 235.8 56"></path>
+        <line class="pend-tick" x1="219.6" y1="50.7" x2="229" y2="40.3"></line>
+        <line class="pend-tick" x1="80.4" y1="50.7" x2="71" y2="40.3"></line>
+        <line class="pend-tick center" x1="150" y1="22" x2="150" y2="10"></line>
+        <g id="pendRod" class="pend-rod resting">
+          <line x1="150" y1="128" x2="150" y2="14"></line>
+          <circle id="pendBob" class="pend-bob" cx="150" cy="30" r="12"></circle>
+        </g>
+        <circle class="pend-pivot" cx="150" cy="128" r="6"></circle>
+      </svg>
+    </div>
+    <div class="score" id="score" hidden></div>
+    <div class="viz" id="viz" hidden>
+      <canvas id="vizCanvas" role="img" aria-label="박의 흐름"></canvas>
+      <button type="button" class="viz-hit" id="vizHit" aria-label="박에 맞춰 누르기 (타이밍 재기)" hidden></button>
+      <div class="viz-tools" id="vizTools" hidden>
+        <button type="button" class="viz-tool" id="micBtn" aria-pressed="false">
+          <svg width="14" height="14" viewBox="0 0 20 20" aria-hidden="true"><rect x="7" y="2" width="6" height="11" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"></rect><path d="M4 10 A6 6 0 0 0 16 10 M10 16 V18.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>
+          <span id="micTxt">마이크</span></button>
+        <button type="button" class="viz-tool" id="calBtn">보정</button>
+        <button type="button" class="viz-tool" id="coachReset" aria-label="타이밍 기록 지우기">지우기</button>
+      </div>
+    </div>
+
+    <div class="beats" id="beats" role="group" aria-label="박마다 세기. 누를 때마다 강, 보통, 약, 끄기로 바뀝니다"></div>
+
+    <div class="adjust">
+      <button class="round" id="minus" type="button" aria-label="빠르기 1 낮추기, 길게 누르면 계속">−</button>
+      <button class="tap" id="tap" type="button" aria-label="탭 템포. 좌우로 밀면 빠르기 조절">
+        <span class="tap-arrow" aria-hidden="true">‹</span><span class="tap-label" id="tapLabel">탭</span><span class="tap-arrow" aria-hidden="true">›</span>
+      </button>
+      <button class="round" id="plus" type="button" aria-label="빠르기 1 올리기, 길게 누르면 계속">+</button>
+    </div>
+
+    <div class="chips">
+      <button class="chip" id="chipMeter" type="button">4/4 박자</button>
+      <button class="chip" id="chipSub" type="button">분할 없음</button>
+      <button class="chip" id="chipSound" type="button">소리 · 클릭</button>
+    </div>
+
+    <button class="play" id="play" type="button" aria-label="재생">
+      <svg class="ic-play" width="30" height="30" viewBox="0 0 28 28" aria-hidden="true"><path d="M9 5 L23 14 L9 23 Z" fill="currentColor"></path></svg>
+      <svg class="ic-stop" width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><rect x="5" y="5" width="16" height="16" rx="3" fill="currentColor"></rect></svg>
+    </button>
+  </main>
+
+  <!-- 곡 목록 -->
+  <section class="view" id="viewSongs" hidden aria-labelledby="songsTitle">
+    <div class="view-head">
+      <h1 id="songsTitle">곡 지도</h1>
+      <button class="btn-primary" id="newSong" type="button">+ 새 곡</button>
+    </div>
+    <p class="view-sub">곡을 구간으로 나눠 박자와 빠르기를 정해 두면, 처음부터 끝까지 한 번에 돌아갑니다.</p>
+    <ul class="song-list" id="songList"></ul>
+  </section>
+
+  <!-- 곡 편집 -->
+  <section class="view editor" id="viewEditor" hidden aria-label="곡 편집">
+    <div class="editor-head">
+      <button class="icon-btn" id="editorBack" type="button" aria-label="곡 목록으로">
+        <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M13 3 L6 10 L13 17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+      </button>
+      <label class="sr-only" for="songName">곡 이름</label>
+      <input class="song-name" id="songName" type="text" maxlength="40" autocomplete="off">
+      <button class="icon-btn" id="songDelete" type="button" aria-label="이 곡 지우기">
+        <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6 H16 M8 6 V4 H12 V6 M6 6 L7 17 H13 L14 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+      </button>
+    </div>
+    <p class="song-meta" id="songMeta"></p>
+
+    <div class="confirm" id="confirmDelete" hidden role="alert">
+      <span>이 곡을 지울까요? 되돌릴 수 없어요.</span>
+      <div class="confirm-actions">
+        <button class="btn-quiet" id="cancelDelete" type="button">취소</button>
+        <button class="btn-danger" id="doDelete" type="button">지우기</button>
+      </div>
+    </div>
+
+    <div class="now-panel" id="nowPanel" hidden aria-live="polite">
+      <div class="now-top"><span class="now-label" id="nowLabel">재생 중</span><span class="now-bpm" id="nowBpm"></span></div>
+      <div class="now-name" id="nowName"></div>
+      <div class="now-bar" id="nowBar"></div>
+      <div class="now-dots" id="nowDots" aria-hidden="true"></div>
+      <div class="now-next" id="nowNext"></div>
+    </div>
+
+    <ol class="sections" id="sectionList"></ol>
+    <button class="add-sec" id="addSection" type="button">+ 구간 추가</button>
+
+    <div class="editor-foot">
+      <div class="countin">
+        <span class="countin-label" id="countInLabel">카운트인</span>
+        <div class="seg" role="group" aria-labelledby="countInLabel">
+          <button type="button" data-countin="0">없음</button>
+          <button type="button" data-countin="1">1마디</button>
+          <button type="button" data-countin="2">2마디</button>
+        </div>
+      </div>
+      <button class="play play-song" id="playSong" type="button" aria-label="곡 재생">
+        <svg class="ic-play" width="30" height="30" viewBox="0 0 28 28" aria-hidden="true"><path d="M9 5 L23 14 L9 23 Z" fill="currentColor"></path></svg>
+        <svg class="ic-stop" width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><rect x="5" y="5" width="16" height="16" rx="3" fill="currentColor"></rect></svg>
+      </button>
+    </div>
+  </section>
+
+  <!-- 연습 기록 -->
+  <section class="view" id="viewLog" hidden aria-labelledby="logTitle">
+    <div class="view-head"><h1 id="logTitle">연습 기록</h1></div>
+    <p class="view-sub">메트로놈과 곡 지도가 돌아간 시간이 저절로 쌓여요. 기록은 이 기기에 저장돼요.</p>
+    <div class="stats" id="logStats"></div>
+    <div class="chart-card">
+      <div class="chart-head">
+        <div class="seg" role="group" aria-label="그래프 종류">
+          <button type="button" data-logmode="day" aria-pressed="true">하루별</button>
+          <button type="button" data-logmode="sum" aria-pressed="false">누적</button>
+        </div>
+        <div class="seg" role="group" aria-label="기간">
+          <button type="button" data-logrange="14" aria-pressed="true">2주</button>
+          <button type="button" data-logrange="30" aria-pressed="false">30일</button>
+          <button type="button" data-logrange="90" aria-pressed="false">90일</button>
+        </div>
+      </div>
+      <p class="chart-title" id="logChartTitle"></p>
+      <div class="chart" id="logChart"></div>
+      <p class="chart-note" id="logNote" aria-live="polite"></p>
+    </div>
+    <details class="more log-table">
+      <summary>날짜별 표로 보기</summary>
+      <table><thead><tr><th scope="col">날짜</th><th scope="col">연습 시간</th><th scope="col">가장 빠른 템포</th></tr></thead><tbody id="logRows"></tbody></table>
+    </details>
+    <div class="log-foot">
+      <button class="btn-quiet" id="logClear" type="button">기록 지우기</button>
+      <div class="confirm" id="logConfirm" hidden role="alert">
+        <span>연습 기록을 모두 지울까요? 되돌릴 수 없어요.</span>
+        <div class="confirm-actions">
+          <button class="btn-quiet" id="logCancel" type="button">취소</button>
+          <button class="btn-danger" id="logDoClear" type="button">지우기</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <nav class="tabs" aria-label="메뉴">
+    <div class="tabs-inner">
+      <button class="tab" type="button" data-view="home" aria-current="page">
+        <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><path d="M11 2 L4 20 H18 Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><path d="M11 14 L15 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>메트로놈</button>
+      <button class="tab" type="button" data-view="songs">
+        <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><rect x="2" y="5" width="5" height="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="8.5" y="5" width="5" height="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="15" y="5" width="5" height="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"></rect></svg>곡 지도</button>
+      <button class="tab" type="button" data-view="log">
+        <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><path d="M3 19 H19" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path><rect x="4.5" y="11" width="3" height="6" rx="1" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="9.5" y="7" width="3" height="10" rx="1" fill="none" stroke="currentColor" stroke-width="1.6"></rect><rect x="14.5" y="3.5" width="3" height="13.5" rx="1" fill="none" stroke="currentColor" stroke-width="1.6"></rect></svg>기록</button>
+      <button class="tab" type="button" id="tabSettings">
+        <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><path d="M3 6 H19 M3 11 H19 M3 16 H19" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path><circle cx="8" cy="6" r="2" fill="var(--surface)" stroke="currentColor" stroke-width="1.6"></circle><circle cx="14" cy="11" r="2" fill="var(--surface)" stroke="currentColor" stroke-width="1.6"></circle><circle cx="7" cy="16" r="2" fill="var(--surface)" stroke="currentColor" stroke-width="1.6"></circle></svg>설정</button>
+    </div>
+  </nav>
+</div>
+
+<div class="flash" id="flash" aria-hidden="true"></div>
+<div class="backdrop" id="backdrop" hidden></div>
+
+<!-- 박자 · 분할 · 폴리리듬 -->
+<section class="sheet" id="sheetMeter" role="dialog" aria-modal="true" aria-labelledby="meterTitle" hidden>
+  <div class="grab" aria-hidden="true"></div>
+  <div class="sheet-head"><h2 id="meterTitle">박자 · 리듬</h2><button class="done" type="button" data-close>완료</button></div>
+
+  <div class="step"><span class="step-no" aria-hidden="true">1</span><h3>박자</h3><span class="step-sum" id="sumMeter"></span></div>
+  <div class="grid4" id="meterGrid"></div>
+  <div id="groupWrap" hidden>
+    <p class="mini-label">묶음 · 강세 위치</p>
+    <div class="opts" id="groupOpts"></div>
+  </div>
+  <details class="more" id="customMeter">
+    <summary>다른 박자 직접 만들기</summary>
+    <div class="custom">
+      <div class="stepper">
+        <button type="button" id="beatsMinus" aria-label="박 수 줄이기">−</button>
+        <span id="beatsVal" aria-live="polite">4</span>
+        <button type="button" id="beatsPlus" aria-label="박 수 늘리기">+</button>
+      </div>
+      <span class="slash">/</span>
+      <div class="seg" role="group" aria-label="박의 단위">
+        <button type="button" id="unit4" aria-pressed="true">4</button>
+        <button type="button" id="unit8" aria-pressed="false">8</button>
+      </div>
+    </div>
+  </details>
+
+  <div class="step"><span class="step-no" aria-hidden="true">2</span><h3>분할</h3><span class="step-sum" id="sumSub"></span></div>
+  <div class="grid3" id="subGrid"></div>
+
+  <div id="patternWrap" hidden>
+    <div class="step"><span class="step-no" aria-hidden="true">3</span><h3>리듬 패턴</h3><span class="step-sum">음표를 누르면 쉼표로</span></div>
+    <div class="pat-presets" id="patPresets"></div>
+    <div class="pat-edit" id="patEdit" role="group" aria-label="박 안의 자리마다 소리 · 쉼표"></div>
+  </div>
+
+  <details class="more" id="polyMore">
+    <summary>폴리리듬 <span class="more-sum" id="polySum">꺼짐</span></summary>
+    <div class="row">
+      <label class="switch" for="polyOn"><input type="checkbox" id="polyOn"><span>켜기</span></label>
+      <div class="stepper">
+        <button type="button" id="polyMinus" aria-label="폴리리듬 줄이기">−</button>
+        <span id="polyVal" aria-live="polite">3</span>
+        <button type="button" id="polyPlus" aria-label="폴리리듬 늘리기">+</button>
+      </div>
+    </div>
+    <p class="hint" id="polyHint">한 마디에 3번 · 3 : 4</p>
+  </details>
+  <p class="hint">박마다 세기(강 · 보통 · 약 · 끔)는 홈의 박 점을 눌러 바꿔요.</p>
+</section>
+
+<!-- 합주: 여러 기기 박 맞추기 -->
+<section class="sheet" id="sheetBand" role="dialog" aria-modal="true" aria-labelledby="bandTitle" hidden>
+  <div class="grab" aria-hidden="true"></div>
+  <div class="sheet-head"><h2 id="bandTitle">합주</h2><button class="done" type="button" data-close>완료</button></div>
+
+  <div id="bandIdle">
+    <p class="band-lead">한 기기가 리더가 되어 템포를 정하면, 같은 방의 모든 기기가 같은 순간에 박을 쳐요. 템포 · 박자 · 분할을 바꾸면 다음 마디부터 다 같이 바뀌어요.</p>
+    <label class="field" for="bandName"><span class="field-label">내 이름 (다른 기기에 보여요)</span><input type="text" id="bandName" maxlength="12" autocomplete="nickname"></label>
+    <button class="btn-primary band-create" id="bandCreate" type="button">합주 방 만들기 <span class="pro-tag">PRO</span></button>
+    <div class="or" aria-hidden="true"><span>또는 코드로 참가</span></div>
+    <div class="join-row">
+      <input type="text" id="bandCode" maxlength="7" placeholder="ABC123" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="방 코드 6자리">
+      <button class="btn-secondary" id="bandJoin" type="button">참가</button>
+    </div>
+    <p class="hint">리더 화면의 QR을 휴대폰 카메라로 찍어도 바로 참가해요. 참가는 누구나 무료예요.</p>
+    <p class="hint band-mode" id="bandMode"></p>
+  </div>
+
+  <div id="bandLeader" hidden>
+    <div class="qr-card">
+      <div class="qr" id="bandQr" role="img" aria-label="참가용 QR 코드"></div>
+      <div class="qr-side">
+        <span class="mini-label">방 코드</span>
+        <b class="room-code" id="bandCodeBig">------</b>
+        <button class="link-btn" id="bandCopy" type="button">참가 링크 복사</button>
+      </div>
+    </div>
+    <p class="hint">시작 · 멈춤, 템포, 박자, 분할, 리듬 패턴, 곡 지도를 이 기기에서 바꾸면 다음 마디부터 모두 함께 바뀌어요. 소리 · 테마 · 박 보기는 기기마다 따로예요.</p>
+  </div>
+
+  <div id="bandMember" hidden>
+    <div class="band-status">
+      <span class="live-dot" id="bandLive" aria-hidden="true"></span>
+      <div class="band-status-text"><b id="bandStatusTitle">리더와 연결됨</b><span id="bandStatusSub">시계 맞추는 중…</span></div>
+    </div>
+    <label class="switch line" for="bandFollow"><input type="checkbox" id="bandFollow" checked><span>내 기기에서도 소리 내기 <small>끄면 화면만 같이 움직여요</small></span></label>
+  </div>
+
+  <div id="bandRoom" hidden>
+    <h3>참가한 기기 <span class="count-pill" id="bandCount">1</span></h3>
+    <ul class="members" id="bandMembers"></ul>
+    <h3>내 기기 소리 지연 보정</h3>
+    <label class="range" for="bandLat"><span><output id="bandLatVal" for="bandLat">0ms</output></span><input type="range" id="bandLat" min="-50" max="300" step="5"></label>
+    <p class="hint">블루투스 이어폰 · 스피커는 소리가 늦게 나와요(보통 150~250ms). 이 기기만 늦게 들리면 오른쪽으로 옮기세요.</p>
+    <button class="btn-quiet" id="bandLeave" type="button">합주에서 나가기</button>
+  </div>
+</section>
+
+<!-- 연습 모드 · 타이머 -->
+<section class="sheet" id="sheetPractice" role="dialog" aria-modal="true" aria-labelledby="practiceTitle" hidden>
+  <div class="grab" aria-hidden="true"></div>
+  <div class="sheet-head"><h2 id="practiceTitle">연습 모드</h2><button class="done" type="button" data-close>완료</button></div>
+
+  <label class="switch line" for="prOn"><input type="checkbox" id="prOn"><span>빠르기 조금씩 올리기 <small>재생하는 동안 정한 시간마다 템포가 올라가요</small></span></label>
+
+  <div class="pr-cards" id="prCards">
+    <div class="pr-card">
+      <span class="pr-label">얼마마다</span>
+      <div class="stepper">
+        <button type="button" id="prEveryMinus" aria-label="간격 줄이기">−</button>
+        <span id="prEvery">5</span>
+        <button type="button" id="prEveryPlus" aria-label="간격 늘리기">+</button>
+      </div>
+      <div class="seg" role="group" aria-label="간격 단위">
+        <button type="button" data-prunit="min" aria-pressed="true">분</button>
+        <button type="button" data-prunit="bar" aria-pressed="false">마디</button>
+      </div>
+    </div>
+    <div class="pr-card">
+      <span class="pr-label">몇씩 올릴까</span>
+      <div class="stepper">
+        <button type="button" id="prStepMinus" aria-label="올리는 양 줄이기">−</button>
+        <span id="prStep">+5</span>
+        <button type="button" id="prStepPlus" aria-label="올리는 양 늘리기">+</button>
+      </div>
+      <span class="pr-unit">BPM</span>
+    </div>
+    <div class="pr-card">
+      <span class="pr-label">목표 빠르기</span>
+      <div class="stepper">
+        <button type="button" id="prTargetMinus" aria-label="목표 낮추기">−</button>
+        <span id="prTarget">140</span>
+        <button type="button" id="prTargetPlus" aria-label="목표 올리기">+</button>
+      </div>
+      <span class="pr-unit">BPM</span>
+    </div>
+  </div>
+  <div class="pr-plan" id="prPlan"></div>
+
+  <h3>연습 시간 타이머</h3>
+  <div class="seg wide" role="group" aria-label="연습 시간 타이머">
+    <button type="button" data-timer="0">끔</button>
+    <button type="button" data-timer="10">10분</button>
+    <button type="button" data-timer="20">20분</button>
+    <button type="button" data-timer="30">30분</button>
+    <button type="button" data-timer="60">60분</button>
+  </div>
+  <p class="hint">시간이 다 되면 그 마디를 끝까지 치고 멈춰요. 템포는 언제나 마디 첫 박에서만 바뀌어서, 마디 중간에 박이 흔들리지 않아요.</p>
+</section>
+
+<!-- 소리 · 진동 · 화면 -->
+<section class="sheet" id="sheetSound" role="dialog" aria-modal="true" aria-labelledby="soundTitle" hidden>
+  <div class="grab" aria-hidden="true"></div>
+  <div class="sheet-head"><h2 id="soundTitle">소리</h2><button class="done" type="button" data-close>완료</button></div>
+
+  <div class="voice-cards" role="tablist" aria-label="바꿀 소리">
+    <button type="button" class="voice-card" role="tab" data-card="beat" aria-selected="true">
+      <span class="vc-ic" aria-hidden="true"></span>
+      <span class="vc-text"><span class="vc-k">박 소리</span><span class="vc-v"></span></span>
+    </button>
+    <button type="button" class="voice-card" role="tab" data-card="sub" aria-selected="false">
+      <span class="vc-ic" aria-hidden="true"></span>
+      <span class="vc-text"><span class="vc-k">분할 소리</span><span class="vc-v"></span></span>
+    </button>
+    <button type="button" class="voice-card" role="tab" data-card="poly" aria-selected="false" hidden>
+      <span class="vc-ic" aria-hidden="true"></span>
+      <span class="vc-text"><span class="vc-k">폴리 소리</span><span class="vc-v"></span></span>
+    </button>
+  </div>
+
+  <div class="voice-panel" role="tabpanel" id="voicePanel">
+    <div class="accent-row" id="accentRow">
+      <label class="switch" for="accentLink"><input type="checkbox" id="accentLink"><span>첫 박은 같은 소리로 조금 높게</span></label>
+      <div class="seg" role="group" aria-label="고칠 박" id="accentEdit" hidden>
+        <button type="button" data-edit="beat" aria-pressed="true">보통 박</button>
+        <button type="button" data-edit="accent" aria-pressed="false">첫 박</button>
+      </div>
+    </div>
+    <p class="sub-off" id="subOff" hidden>지금은 분할이 "없음"이에요. 박자 · 리듬에서 분할을 고르면 이 소리가 나요.</p>
+
+    <div class="sound-grid" id="soundOpts" role="radiogroup" aria-label="음색"></div>
+
+    <div id="pitchBox" class="tune">
+      <div class="tune-head"><span class="tune-label">음높이</span><output class="tune-val" id="pitchVal" for="pitch">0.0 반음</output></div>
+      <div class="tune-row">
+        <button type="button" class="fine" id="pitchDown" aria-label="음높이 0.1반음 내리기">−</button>
+        <input type="range" id="pitch" min="-12" max="12" step="0.1" aria-label="음높이 (반음)">
+        <button type="button" class="fine" id="pitchUp" aria-label="음높이 0.1반음 올리기">+</button>
+      </div>
+      <div class="tune-scale" aria-hidden="true"><span>낮게</span><span>기본</span><span>높게</span></div>
+    </div>
+
+    <div id="freqBox" class="tune" hidden>
+      <div class="tune-head"><label class="tune-label" for="hz">주파수</label>
+        <span class="hz-input"><input type="number" id="hz" min="40" max="8000" step="1" inputmode="numeric"><span>Hz</span></span>
+      </div>
+      <div class="tune-row">
+        <button type="button" class="fine" id="hzDown" aria-label="주파수 1Hz 내리기">−</button>
+        <input type="range" id="hzRange" min="0" max="1000" step="1" aria-label="주파수">
+        <button type="button" class="fine" id="hzUp" aria-label="주파수 1Hz 올리기">+</button>
+      </div>
+      <div class="hz-presets" id="hzPresets"></div>
+      <div class="seg wide wave" role="group" aria-label="파형">
+        <button type="button" data-wave="sine">사인</button>
+        <button type="button" data-wave="triangle">삼각</button>
+        <button type="button" data-wave="square">사각</button>
+        <button type="button" data-wave="sawtooth">톱니</button>
+      </div>
+    </div>
+
+    <div class="tune vol-box">
+      <div class="tune-head"><label class="tune-label" for="vol">크기</label><output class="tune-val" id="volVal" for="vol">100%</output></div>
+      <input type="range" id="vol" min="0" max="100" step="5" aria-label="크기">
+    </div>
+  </div>
+  <p class="hint">소리를 누르면 바로 들려요. 화면 깜빡임 · 박 보기 · 진동은 아래 "설정" 탭에 있어요.</p>
+</section>
+
+<!-- 화면 · 기타 설정 -->
+<section class="sheet" id="sheetScreen" role="dialog" aria-modal="true" aria-labelledby="screenTitle" hidden>
+  <div class="grab" aria-hidden="true"></div>
+  <div class="sheet-head"><h2 id="screenTitle">설정</h2><button class="done" type="button" data-close>완료</button></div>
+
+  <h3>색상 테마</h3>
+  <div class="skin-grid" id="skinGrid" role="radiogroup" aria-label="색상 테마"></div>
+  <p class="hint" id="proNote">PRO 테마는 시범 기간 동안 모두 무료로 열어 두었어요.</p>
+  <div class="seg wide" role="group" aria-label="밝기">
+    <button type="button" data-appearance="auto" aria-pressed="true">기기 따라</button>
+    <button type="button" data-appearance="light" aria-pressed="false">밝게</button>
+    <button type="button" data-appearance="dark" aria-pressed="false">어둡게</button>
+  </div>
+
+  <h3>박 보기</h3>
+  <div class="view-grid" id="viewGrid" role="radiogroup" aria-label="박 보기"></div>
+  <p class="hint" id="viewHint">PRO 보기는 시범 기간 동안 모두 열려 있어요. 타이밍 코치는 화면을 박에 맞춰 누르거나 마이크로 연주를 들어서 재요.</p>
+
+  <h3>화면 깜빡임</h3>
+  <div class="seg wide" role="group" aria-label="화면 깜빡임">
+    <button type="button" data-flash="off" aria-pressed="false">끔</button>
+    <button type="button" data-flash="first" aria-pressed="true">첫 박</button>
+    <button type="button" data-flash="all" aria-pressed="false">모든 박</button>
+  </div>
+
+  <h3>기타</h3>
+  <label class="switch line" for="vibrate"><input type="checkbox" id="vibrate"><span>진동 <small id="vibrateNote">첫 박은 강하게</small></span></label>
+  <label class="switch line" for="wake"><input type="checkbox" id="wake"><span>재생 중 화면 켜 두기</span></label>
+
+  <h3>화면 지연 보정</h3>
+  <label class="range" for="offset"><span><output id="offsetVal" for="offset">0ms</output></span><input type="range" id="offset" min="-100" max="300" step="10"></label>
+  <p class="hint">블루투스 이어폰은 소리가 늦게 나옵니다. 깜빡임이 소리보다 빠르면 오른쪽으로 옮기세요.</p>
+</section>
+
+<!-- 빠르기 직접 입력 -->
+<section class="sheet" id="sheetBpm" role="dialog" aria-modal="true" aria-labelledby="bpmTitle" hidden>
+  <div class="grab" aria-hidden="true"></div>
+  <form id="bpmForm" class="bpm-form">
+    <div class="sheet-head"><h2 id="bpmTitle">빠르기 입력</h2><button class="done" type="submit">확인</button></div>
+    <label class="bpm-input" for="bpmInput"><input type="number" id="bpmInput" inputmode="numeric" min="20" max="400" step="1"><span>BPM</span></label>
+    <div class="grid4" id="bpmQuick"></div>
+    <p class="hint">20–400 사이로 넣어 주세요.</p>
+  </form>
+</section>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<!--APP-END-->
+<script src="js/sounds.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/notation.js"></script>
+<script src="js/viz.js"></script>
+<script src="js/firebase-config.js"></script>
+<script src="js/sync.js"></script>
+<script src="js/app.js"></script>
+<script src="js/songs.js"></script>
+<script>
+  if ('serviceWorker' in navigator && window.top === window.self) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('sw.js').catch(function () {});
+    });
+  }
+</script>
+</body>
+</html>
