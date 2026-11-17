@@ -236,7 +236,8 @@
     dial.setAttribute('aria-valuetext', S.bpm + ' BPM, ' + name[2]);
     // v1.6.1: 아래가 트인 300° 다이얼 — 왼쪽 아래 끝 20, 오른쪽 아래 끝 400 (느린 쪽을 넓게 보이게 로그 눈금)
     const frac = Math.min(1, Math.max(0, Math.log(S.bpm / MIN) / Math.log(MAX / MIN)));
-    $('dialArc').setAttribute('stroke-dasharray', Math.max(0.5, frac * 1000).toFixed(1) + ' 1000');
+    const ARC = 128 * 300 * Math.PI / 180; // 300° 고리의 실제 길이
+    $('dialArc').setAttribute('stroke-dasharray', Math.max(0.5, frac * ARC).toFixed(1) + ' ' + (ARC + 10).toFixed(1));
     const ang = (120 + 300 * frac) * Math.PI / 180;
     $('dialKnob').setAttribute('cx', (140 + R * Math.cos(ang)).toFixed(1));
     $('dialKnob').setAttribute('cy', (140 + R * Math.sin(ang)).toFixed(1));
@@ -412,6 +413,7 @@
   function renderBeats() {
     const box = $('beats');
     box.innerHTML = '';
+    scheduleFit();
     box.classList.toggle('many', S.beats > 8);
     const labels = countLabels();
     for (let i = 0; i < S.beats; i++) {
@@ -1697,7 +1699,53 @@
   $('btnSound').addEventListener('click', function () { showSheet('sheetSound'); });
   $('btnPractice').addEventListener('click', function () { showSheet('sheetPractice'); });
   $('tabSettings').addEventListener('click', function () { showSheet('sheetScreen'); });
-  $('bpmBtn').addEventListener('click', function () { showSheet('sheetBpm'); });
+  // v1.6.2: 숫자를 위아래 · 좌우로 밀면 1씩 섬세하게 (위 · 오른쪽 = 빠르게). 그냥 누르면 직접 입력
+  const SCRUB_PX = 7;
+  let scrub = null, scrubClick = false;
+  (function bpmScrub() {
+    const btn = $('bpmBtn');
+    const tick = function () { try { if (PLUG.Haptics && PLUG.Haptics.selectionChanged) PLUG.Haptics.selectionChanged(); } catch (e) { /* 무시 */ } };
+    btn.addEventListener('pointerdown', function (e) {
+      if (e.button > 0) return;
+      scrub = { x: e.clientX, y: e.clientY, on: false };
+    });
+    btn.addEventListener('pointermove', function (e) {
+      if (!scrub) return;
+      if (!scrub.on) {
+        const dx = e.clientX - scrub.x, dy = e.clientY - scrub.y;
+        if (dx * dx + dy * dy < 64) return; // 8px 넘게 움직여야 "밀기"
+        scrub.on = true; scrub.x0 = e.clientX; scrub.y0 = e.clientY; scrub.base = S.bpm;
+        try { btn.setPointerCapture(e.pointerId); } catch (err) { /* 무시 */ }
+        $('dial').classList.add('scrub');
+        try { if (PLUG.Haptics && PLUG.Haptics.selectionStart) PLUG.Haptics.selectionStart(); } catch (err) { /* 무시 */ }
+      }
+      e.preventDefault();
+      const raw = scrub.base + Math.round(((e.clientX - scrub.x0) - (e.clientY - scrub.y0)) / SCRUB_PX);
+      if (raw < MIN || raw > MAX) {
+        // 끝에서 멈추고, 지금 손가락 자리를 새 기준으로 → 반대로 밀면 바로 움직임
+        const edge = raw < MIN ? MIN : MAX;
+        scrub.base = edge; scrub.x0 = e.clientX; scrub.y0 = e.clientY;
+        if (S.bpm !== edge) setBpm(edge);
+        hitLimit();
+        return;
+      }
+      if (raw !== S.bpm) { setBpm(raw); tick(); }
+    });
+    const end = function () {
+      if (scrub && scrub.on) {
+        scrubClick = true; // 밀기가 끝난 직후 따라오는 click은 무시
+        setTimeout(function () { scrubClick = false; }, 400);
+        $('dial').classList.remove('scrub');
+        try { if (PLUG.Haptics && PLUG.Haptics.selectionEnd) PLUG.Haptics.selectionEnd(); } catch (err) { /* 무시 */ }
+      }
+      scrub = null;
+    };
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (ev) { btn.addEventListener(ev, end); });
+  })();
+  $('bpmBtn').addEventListener('click', function (e) {
+    if (scrubClick) { scrubClick = false; e.preventDefault(); return; }
+    showSheet('sheetBpm');
+  });
   document.querySelectorAll('.tab.soon').forEach(function (b) {
     b.addEventListener('click', function () { toast(b.dataset.soon); });
   });
@@ -1715,7 +1763,7 @@
       const on = t.dataset.view === name || (name === 'editor' && t.dataset.view === 'songs');
       if (on) t.setAttribute('aria-current', 'page'); else t.removeAttribute('aria-current');
     });
-    if (name === 'home') renderAll();
+    if (name === 'home') { renderAll(); scheduleFit(); }
     if (name === 'log') renderLog();
   }
   document.querySelectorAll('.tab[data-view]').forEach(function (t) {
@@ -2016,6 +2064,27 @@
     scoreObj.cursor.setAttribute('x2', x);
   }
   function isViz() { return VIZ_MODES.indexOf(S.viewMode) >= 0; }
+  // v1.6.2: 박 보기(진자 · 악보 · 박 흐름 화면)를 탭하면 다음 모양으로. 점만 · 타이밍 코치는 설정에서만
+  const TAP_CYCLE = VIEW_LIST.map(function (v) { return v[0]; }).filter(function (id) { return id !== 'dots' && id !== 'coach'; });
+  function cycleView() {
+    if (S.viewMode === 'coach') return;
+    const i = TAP_CYCLE.indexOf(S.viewMode);
+    const nx = TAP_CYCLE[(i + 1) % TAP_CYCLE.length];
+    S.viewMode = nx;
+    renderScreenSheet();
+    renderViewMode();
+    save();
+    const m = VIEW_LIST.find(function (v) { return v[0] === nx; });
+    const el = nx === 'pendulum' ? $('pendulum') : nx === 'score' ? $('score') : $('viz');
+    el.classList.remove('vw-in'); void el.offsetWidth; el.classList.add('vw-in');
+    toast('박 보기: ' + m[1] + ' · ' + m[2]);
+  }
+  ['pendulum', 'score', 'viz'].forEach(function (id) {
+    $(id).addEventListener('click', function (e) {
+      if (e.target.closest && e.target.closest('#vizHit, #vizTools, button, a')) return;
+      cycleView();
+    });
+  });
   function renderViewMode() {
     if (!VIEW_LIST.some(function (v) { return v[0] === S.viewMode; })) S.viewMode = 'pendulum';
     $('pendulum').hidden = S.viewMode !== 'pendulum';
@@ -2028,6 +2097,7 @@
     $('vizTools').hidden = S.viewMode !== 'coach';
     if (S.viewMode !== 'coach' && coach.mic) micOff();
     renderPrac();
+    scheduleFit();
     if (vz) {
       if (!vizObj) vizObj = window.RHViz.create($('vizCanvas'));
       const m = VIEW_LIST.find(function (v) { return v[0] === S.viewMode; });
@@ -2036,8 +2106,68 @@
       drawViz();
     }
   }
+  /* ---------- v1.6.2: 화면 맞춤 — 어떤 기종이든 재생 버튼까지 한 화면에 ----------
+     다이얼 · 박 보기(진자 · 악보 · 박 흐름)만 늘이고 줄여서, 홈 화면 내용이 쓸 수 있는 높이에 꼭 맞게 함.
+     키 큰 화면(패드)에서는 조금 크게(최대 1.3배), 낮은 화면(아이폰 SE · 6)에서는 작게(최소 0.5배). */
+  const FIT_MIN = 0.4, FIT_MAX = 1.3, FIT_GAP = 8;
+  let fitRaf = 0;
+  function homeNeed(home) {
+    let sum = 0, n = 0;
+    const kids = home.children;
+    for (let i = 0; i < kids.length; i++) {
+      const el = kids[i];
+      if (el.hidden) continue;
+      const cs = getComputedStyle(el);
+      if (cs.display === 'none' || cs.position === 'absolute' || cs.position === 'fixed') continue;
+      sum += el.getBoundingClientRect().height + (parseFloat(cs.marginTop) || 0) + (parseFloat(cs.marginBottom) || 0);
+      n++;
+    }
+    const hs = getComputedStyle(home);
+    // 옛 기종(간격 대신 여백을 넣는 도우미 사용 중)이면 여백에 이미 들어 있으니 최소 간격만
+    const gap = document.documentElement.classList.contains('no-flex-gap') ? 0 : Math.max(FIT_GAP, parseFloat(hs.rowGap) || 0);
+    return sum + Math.max(0, n - 1) * gap + (parseFloat(hs.paddingTop) || 0) + (parseFloat(hs.paddingBottom) || 0) + 4;
+  }
+  function fitHome() {
+    fitRaf = 0;
+    const home = $('viewHome');
+    if (!home || home.hidden || !home.clientHeight) return;
+    if (home.classList.contains('focus')) { home.style.setProperty('--fit', '1'); return; }
+    // 1차: 보통 크기의 버튼들로 맞춰 봄 → 많이 줄여야 하면(작은 휴대폰) 버튼 · 간격도 한 단계 작게 해서 다시
+    document.documentElement.classList.remove('fit-tight');
+    fitOnce(home);
+    if (parseFloat(home.style.getPropertyValue('--fit')) < 0.66) {
+      document.documentElement.classList.add('fit-tight');
+      fitOnce(home);
+    }
+  }
+  function fitOnce(home) {
+    const avail = home.clientHeight;
+    const setF = function (f) { home.style.setProperty('--fit', f.toFixed(3)); };
+    home.classList.remove('scroll');
+    setF(FIT_MAX);
+    if (homeNeed(home) <= avail) { home.classList.remove('tight'); return; }
+    let lo = FIT_MIN, hi = FIT_MAX;
+    for (let i = 0; i < 9; i++) {
+      const mid = (lo + hi) / 2;
+      setF(mid);
+      if (homeNeed(home) <= avail) lo = mid; else hi = mid;
+    }
+    setF(lo);
+    // 가장 작게 해도 모자라면(가로로 눕힌 휴대폰 등) 홈 화면만 위아래로 밀어 볼 수 있게
+    home.classList.toggle('scroll', homeNeed(home) > avail + 1);
+  }
+  function scheduleFit() {
+    if (fitRaf) return;
+    fitRaf = (window.requestAnimationFrame || setTimeout)(fitHome);
+  }
+  window.addEventListener('resize', scheduleFit);
+  window.addEventListener('rh-layout', scheduleFit); // 옛 기종 도우미가 간격을 다시 넣었을 때
+  window.addEventListener('orientationchange', function () { setTimeout(fitHome, 250); });
+  try { new ResizeObserver(scheduleFit).observe($('viewHome')); } catch (e) { /* 옛 기종: resize로 대신 */ }
+  try { if (document.fonts && document.fonts.ready) document.fonts.ready.then(scheduleFit); } catch (e) { /* 무시 */ }
+
   /* ---------- v1.6.1: 연습 계기판 · 크게 보기 ---------- */
-  let pracStart = null, pracWasPlaying = false, pracLadderKey = '';
+  let pracStart = null, pracWasPlaying = false, pracLadderKey = '', pracLayoutKey = '';
   function mmssUp(sec) { // 흐른 시간은 내림 (0:59 다음에 1:00)
     sec = Math.max(0, Math.floor(sec));
     const h = Math.floor(sec / 3600), m = Math.floor(sec / 60) % 60, x = String(sec % 60).padStart(2, '0');
@@ -2072,6 +2202,8 @@
     if (!home) return;
     const show = pracShown();
     const big = show && !!S.pracBig;
+    const pkey = show + '|' + big + '|' + isViz();
+    if (pkey !== pracLayoutKey) { pracLayoutKey = pkey; scheduleFit(); }
     home.classList.toggle('practicing', show);
     home.classList.toggle('focus', big);
     $('prac').hidden = !show;

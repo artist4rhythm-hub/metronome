@@ -343,8 +343,8 @@ button { font: inherit; color: inherit; }
 }
 
 .dial {
-  --d: min(280px, 72vw, 36vh);
-  --d: min(280px, 72cqw, 36cqh);
+  /* v1.6.2: 높이는 화면에 맞춰 자동(--fit, 앱이 계산), 너비는 화면 너비 안에서 */
+  --d: min(72vw, calc(290px * var(--fit, 1)));
   position: relative; width: var(--d); height: var(--d);
   touch-action: none; cursor: grab; border-radius: 50%; flex-shrink: 0;
 }
@@ -359,7 +359,7 @@ button { font: inherit; color: inherit; }
 @media (prefers-reduced-motion: reduce) { .dial.limit svg { animation: none; } }
 .dial-knob { fill: var(--surface); stroke: var(--brand); stroke-width: 3; }
 .dial-center {
-  position: absolute; inset: 17%;
+  position: absolute; top: 17%; right: 17%; bottom: 17%; left: 17%;
   border: none; background: transparent; border-radius: 50%;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
   cursor: pointer; padding: 0;
@@ -370,8 +370,8 @@ button { font: inherit; color: inherit; }
   font-variant-numeric: tabular-nums;
 }
 .bpm-num.wide { font-size: calc(var(--d) * 0.27); }
-.bpm-unit { font-size: clamp(11px, calc(var(--d) * 0.047), 13px); font-weight: 500; letter-spacing: 0.1em; color: var(--quiet); }
-.tempo-name { font-size: clamp(11px, calc(var(--d) * 0.047), 13px); color: var(--quiet); margin-top: 4px; white-space: nowrap; }
+.bpm-unit { font-size: max(11px, min(calc(var(--d) * 0.047), 13px)); font-weight: 500; letter-spacing: 0.1em; color: var(--quiet); }
+.tempo-name { font-size: max(11px, min(calc(var(--d) * 0.047), 13px)); color: var(--quiet); margin-top: 4px; white-space: nowrap; max-width: calc(var(--d) * 0.6); overflow: hidden; text-overflow: ellipsis; }
 
 /* 박 점 */
 .beats {
@@ -418,7 +418,7 @@ button { font: inherit; color: inherit; }
 .tap.swiping .tap-arrow { color: var(--brand); }
 
 /* 진자 */
-.pendulum { width: min(330px, 86vw, 35vh); width: min(330px, 86cqw, 35cqh); flex-shrink: 0; margin-block: -4px; }
+.pendulum { width: min(86vw, calc(330px * var(--fit, 1))); flex-shrink: 0; margin-block: -4px; }
 .pendulum svg { width: 100%; height: auto; display: block; overflow: visible; }
 .pend-track { fill: none; stroke: var(--track); stroke-width: 6; stroke-linecap: round; }
 .pend-tick { stroke: var(--quiet); stroke-width: 2.5; stroke-linecap: round; }
@@ -433,7 +433,7 @@ button { font: inherit; color: inherit; }
 @media (prefers-reduced-motion: reduce) { .pend-rod.resting { transition: none; } }
 
 /* 악보 보기: 종이 · 잉크 · 연필 */
-.score { width: min(380px, 92vw); flex-shrink: 0; }
+.score { width: min(92vw, calc(380px * var(--fit, 1))); flex-shrink: 0; }
 .score-svg { width: 100%; height: auto; display: block; }
 .score .paper { fill: var(--paper); stroke: var(--paper-edge); stroke-width: 1.5; }
 .score .staff { stroke: var(--paper-line); stroke-width: 1; }
@@ -490,9 +490,9 @@ button { font: inherit; color: inherit; }
 
 /* 아래 메뉴 */
 .tabs { border-top: 1px solid var(--line); background: var(--surface); }
-.tabs-inner { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding-block: 6px 8px; }
+.tabs-inner { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding-block: 4px 2px; }
 .tab {
-  min-height: 52px; border: none; background: none; cursor: pointer;
+  min-height: 50px; border: none; background: none; cursor: pointer;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
   font-size: 11px; color: var(--quiet);
 }
@@ -500,10 +500,10 @@ button { font: inherit; color: inherit; }
 .tab.soon { opacity: 0.55; }
 
 /* 깜빡임 */
-.flash { position: fixed; inset: 0; background: var(--accent); opacity: 0; pointer-events: none; z-index: 5; }
+.flash { position: fixed; top: 0; right: 0; bottom: 0; left: 0; background: var(--accent); opacity: 0; pointer-events: none; z-index: 5; }
 
 /* 아래에서 올라오는 창 */
-.backdrop { position: fixed; inset: 0; background: var(--scrim); z-index: 20; }
+.backdrop { position: fixed; top: 0; right: 0; bottom: 0; left: 0; background: var(--scrim); z-index: 20; }
 .sheet {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 21;
   max-width: 560px; margin: 0 auto; max-height: 86%;
@@ -609,9 +609,6 @@ button { font: inherit; color: inherit; }
 /* 조금 낮은 화면 */
 @media (max-height: 780px) {
   .home { gap: 6px; }
-  .dial { --d: min(250px, 66vw, 31vh); }
-  .pendulum { width: min(290px, 78vw, 34vh); }
-  .score { width: min(340px, 86vw); }
   .beat { min-height: 46px; gap: 4px; }
   .round, .tap { height: 52px; }
   .round { width: 52px; }
@@ -619,17 +616,8 @@ button { font: inherit; color: inherit; }
 }
 /* 낮은 화면 (아이폰 SE 등) */
 @media (max-height: 680px) {
-  .dial { --d: min(210px, 58vw, 28vh); }
-  .pendulum { width: min(230px, 64vw); }
-  .score { width: min(290px, 78vw); }
   .chip { min-height: 40px; }
   .play { width: 60px; height: 60px; }
-}
-/* 넓은 화면 (패드 · 컴퓨터) — 패드 전용 배치는 2단계 */
-@media (min-width: 700px) and (min-height: 700px) {
-  .dial { --d: min(340px, 40vh); }
-  .pendulum { width: min(330px, 31vh); }
-  .score { width: min(380px, 40vh); }
 }
 
 /* ---------- 곡 지도 ---------- */
@@ -912,14 +900,14 @@ button { font: inherit; color: inherit; }
 .skin-grid + .hint { margin-bottom: 10px; }
 
 /* ---------- v1.4: 박 흐름 보조 화면 (프로) ---------- */
-.viz { position: relative; width: min(380px, 92vw); height: clamp(100px, 16.5vh, 160px); height: clamp(100px, 16.5cqh, 160px); flex-shrink: 0; }
+.viz { position: relative; width: min(92vw, calc(380px * var(--fit, 1))); height: max(84px, calc(150px * var(--fit, 1))); flex-shrink: 0; }
 .viz canvas { width: 100%; height: 100%; display: block; }
-.viz.coach { height: clamp(116px, 16.5vh, 170px); height: clamp(116px, 16.5cqh, 170px); }
+.viz.coach { height: max(104px, calc(160px * var(--fit, 1))); }
 .viz-hit {
-  position: absolute; inset: 0; border: none; background: transparent; border-radius: 16px; cursor: pointer;
+  position: absolute; top: 0; right: 0; bottom: 0; left: 0; border: none; background: transparent; border-radius: 16px; cursor: pointer;
   touch-action: manipulation; -webkit-user-select: none; user-select: none;
 }
-.viz-hit:active { background: color-mix(in srgb, var(--brand) 8%, transparent); }
+.viz-hit:active { background: var(--chip); background: color-mix(in srgb, var(--brand) 8%, transparent); }
 .viz-tools { position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: center; gap: 6px; pointer-events: none; }
 .viz-tools .viz-tool { pointer-events: auto; }
 .viz-tool {
@@ -930,9 +918,6 @@ button { font: inherit; color: inherit; }
 .viz.coach canvas { height: calc(100% - 32px); }
 .viz.coach .viz-hit { bottom: 32px; }
 .viz-tools { z-index: 1; }
-@media (max-height: 780px) { .viz, .viz.coach { height: clamp(100px, 15.5vh, 140px); } }
-@media (max-height: 680px) { .viz, .viz.coach { height: clamp(92px, 14.5vh, 118px); width: min(340px, 88vw); } }
-@media (min-width: 700px) and (min-height: 700px) { .viz, .viz.coach { width: min(440px, 50vh); height: clamp(110px, 13.5vh, 170px); } }
 
 /* 설정: 박 보기 카드 */
 .view-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
@@ -970,7 +955,7 @@ button { font: inherit; color: inherit; }
 .band-status-text b { font-size: 15px; }
 .band-status-text span { font-size: 13px; color: var(--quiet); font-variant-numeric: tabular-nums; }
 .live-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--dot); flex-shrink: 0; }
-.live-dot.ok { background: var(--brand); box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 20%, transparent); }
+.live-dot.ok { background: var(--brand); box-shadow: 0 0 0 4px var(--chip); box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 20%, transparent); }
 .count-pill { display: inline-block; min-width: 22px; padding: 0 7px; border-radius: 11px; background: var(--chip); font-size: 12px; text-align: center; margin-left: 4px; }
 .members { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .members li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
@@ -991,43 +976,25 @@ body.band-member .dial, body.band-member .adjust, body.band-member #chipMeter, b
 /* v1.6.1: 화면 높이 대신 "앱이 쓸 수 있는 높이"로 판단 (아이폰 위아래 띠 제외) */
 @container app (max-height: 780px) {
   .home { gap: 6px; }
-  .dial { --d: min(250px, 66cqw, 31cqh); }
-  .pendulum { width: min(290px, 78cqw, 34cqh); }
-  .score { width: min(340px, 86cqw); }
   .beat { min-height: 46px; gap: 4px; }
   .round, .tap { height: 52px; }
   .round { width: 52px; }
   .play { width: 68px; height: 68px; }
-  .viz, .viz.coach { height: clamp(100px, 15.5cqh, 140px); }
 }
 @container app (max-height: 680px) {
-  .dial { --d: min(210px, 58cqw, 28cqh); }
-  .pendulum { width: min(230px, 64cqw); }
-  .score { width: min(290px, 78cqw); }
   .chip { min-height: 40px; }
   .play { width: 60px; height: 60px; }
-  .viz, .viz.coach { height: clamp(92px, 14.5cqh, 118px); width: min(340px, 88cqw); }
-}
-@container app (min-width: 700px) and (min-height: 700px) {
-  .dial { --d: min(340px, 40cqh); }
-  .pendulum { width: min(330px, 31cqh); }
-  .score { width: min(380px, 40cqh); }
-  .viz, .viz.coach { width: min(440px, 50cqh); height: clamp(110px, 13.5cqh, 170px); }
 }
 
 /* ---------- v1.6.1: 연습 계기판 (연습 모드 · 타이머를 켜면 진자 자리에) ---------- */
 .prac { width: min(380px, 92vw); width: min(380px, 92cqw); flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; }
-.home.practicing .dial { --d: min(232px, 60vw, 26vh); --d: min(232px, 60cqw, 26cqh); }
 .home.practicing { gap: 6px; }
 @container app (max-height: 700px) {
-  .home.practicing .dial { --d: min(160px, 45cqw, 24cqh); }
-  .home.pr-slim .dial { --d: min(150px, 42cqw, 22cqh); }
   .home.practicing .dial-end { display: none; }
   .prac-ladder { display: none !important; }
   .prac .pl-foot { justify-content: center; margin-top: 0; }
   .home.practicing { gap: 2px; padding-block: 2px; }
   .prac .pc-big { min-height: 30px; }
-  .home.pr-slim .dial { --d: min(140px, 40cqw, 21cqh); }
   .home.pr-slim .tempo-name { display: none; }
   .prac-tile { padding: 6px 10px 8px; }
   .pt-val { font-size: 26px; }
@@ -1039,12 +1006,12 @@ body.band-member .dial, body.band-member .adjust, body.band-member #chipMeter, b
 }
 .pt-label { font-size: 13px; color: var(--quiet); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pt-label b { color: var(--ink); font-weight: 700; }
-.pt-val { font-family: var(--font-num); font-weight: 700; font-size: clamp(28px, 9vw, 38px); font-size: clamp(28px, 9cqw, 38px); line-height: 1.05; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.pt-val { font-family: var(--font-num); font-weight: 700; font-size: max(28px, min(9vw, 38px)); font-size: max(28px, min(9cqw, 38px)); line-height: 1.05; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 .pt-val small { font-size: 0.5em; font-weight: 500; margin-left: 2px; letter-spacing: 0; }
 .pt-sub { font-size: 12px; color: var(--quiet); font-variant-numeric: tabular-nums; }
-.prac-tile.next { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, var(--surface)); }
+.prac-tile.next { border-color: var(--accent); background: var(--surface); background: color-mix(in srgb, var(--accent) 9%, var(--surface)); }
 .prac-tile.next .pt-val { color: var(--accent-ink); }
-.prac-tile.done { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 10%, var(--surface)); }
+.prac-tile.done { border-color: var(--brand); background: var(--surface); background: color-mix(in srgb, var(--brand) 10%, var(--surface)); }
 .prac-tile.done .pt-val { color: var(--brand); }
 .pt-bar { height: 6px; border-radius: 3px; background: var(--track); overflow: hidden; margin-top: 6px; }
 .pt-bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.25s linear; }
@@ -1076,7 +1043,7 @@ body.band-member .dial, body.band-member .adjust, body.band-member #chipMeter, b
 .prac.slim .pt-bar { margin-top: 4px; }
 .prac.slim .pl-foot { margin: 0; }
 .prac.slim .pc-big { flex-direction: column; justify-content: center; gap: 2px; height: 100%; padding: 0 8px; border-radius: 14px; font-size: 11px; }
-.home.pr-slim .dial { --d: min(200px, 54vw, 22vh); --d: min(200px, 54cqw, 22cqh); }
+
 
 /* 크게 보기 */
 .home.focus > *:not(.pfocus):not(.beats):not(.play) { display: none !important; }
@@ -1100,3 +1067,43 @@ body.band-member .dial, body.band-member .adjust, body.band-member #chipMeter, b
 .pf-stage { font-size: 14px; color: var(--quiet); margin-top: 8px; font-variant-numeric: tabular-nums; }
 .pf-stage b { color: var(--ink); }
 .home.focus .play { margin-top: 4px; }
+
+/* v1.6.2: 아주 낮은 화면(가로 휴대폰 등)에서 가장 작게 해도 모자랄 때만 홈 화면을 밀어 볼 수 있게 */
+.home.scroll { justify-content: flex-start; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.home.scroll > * { flex-shrink: 0; }
+
+/* v1.6.2: 작은 휴대폰(아이폰 SE · 6 · 작은 안드로이드) — 화면 맞춤이 많이 줄여야 할 때 버튼 · 간격도 한 단계 작게 */
+.fit-tight .top { padding-block: 8px 2px; }
+.fit-tight .icon-btn { width: 40px; height: 40px; }
+.fit-tight .logo { width: 32px; height: 32px; }
+.fit-tight .brand-sub { display: none; }
+.fit-tight .home { gap: 4px; padding-block: 2px; }
+.fit-tight .beat { min-height: 42px; gap: 4px; padding-block: 2px; }
+.fit-tight .round, .fit-tight .tap { height: 48px; }
+.fit-tight .round { width: 48px; font-size: 24px; }
+.fit-tight .tap { width: 150px; }
+.fit-tight .chip { min-height: 38px; padding: 0 12px; font-size: 13px; }
+.fit-tight .chip .note-icon { height: 22px; }
+.fit-tight .play { width: 60px; height: 60px; }
+.fit-tight .tab { min-height: 44px; }
+.fit-tight .prac { gap: 4px; }
+.fit-tight .prac-tile { padding: 5px 10px 7px; }
+.fit-tight .pt-val { font-size: 26px; }
+.fit-tight .pt-sub, .fit-tight .pl-cap { display: none; }
+.fit-tight .prac-ladder { display: none !important; }
+.fit-tight .prac .pl-foot { justify-content: center; margin-top: 0; }
+.fit-tight .prac .pc-big { min-height: 30px; }
+.fit-tight .viz { height: max(64px, calc(150px * var(--fit, 1))); }
+.fit-tight .viz.coach { height: max(84px, calc(160px * var(--fit, 1))); }
+.fit-tight .prac.slim .pt-val { font-size: 22px; }
+
+/* v1.6.2: 숫자 밀기 — 밀고 있는 동안 숫자를 살짝 키우고 색으로 알려 줌 */
+.dial-center { touch-action: none; }
+.bpm-num { transition: transform 0.12s ease-out, color 0.12s; }
+.dial.scrub .bpm-num { transform: scale(1.08); color: var(--brand); }
+.dial.scrub .bpm-unit::after { content: ' ↕'; }
+/* v1.6.2: 박 보기를 탭하면 다음 모양으로 */
+.pendulum, .score, .viz { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.vw-in { animation: vwIn 0.28s ease-out; }
+@keyframes vwIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .vw-in { animation: none; } .bpm-num { transition: none; } }

@@ -1,7 +1,7 @@
 {
   "name": "리듬 하우스 메트로놈",
   "short_name": "RH 메트로놈",
-  "description": "사람이 세어 주는 메트로놈",
+  "description": "드럼 레슨실에서 만든 메트로놈 · 연습 모드 · 합주 모드",
   "lang": "ko",
   "start_url": "./",
   "scope": "./",
