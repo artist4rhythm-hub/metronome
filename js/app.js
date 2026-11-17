@@ -4,6 +4,11 @@
   'use strict';
 
   const $ = function (id) { return document.getElementById(id); };
+  /* 앱(안드로이드 · 아이폰) 안에서 돌 때만 쓰는 기능 */
+  const NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  const PLUG = (NATIVE && window.Capacitor.Plugins) || {};
+  const WEB_URL = 'https://artist4rhythm-hub.github.io/metronome/'; // 합주 QR이 가리킬 공개 주소
+  if (NATIVE) document.documentElement.classList.add('native');
   const engine = new window.RHEngine();
   const KEY = 'rhm.settings.v1';
   const MIN = 20, MAX = 400;
@@ -49,7 +54,7 @@
     patterns: {}, accentLink: true,
     skin: 'forest', appearance: 'auto',
     practice: { on: false, every: 5, unit: 'min', step: 5, target: 140 },
-    timer: 0
+    timer: 0, pracBig: false
   };
   const ROLES = ['accent', 'beat', 'sub', 'poly'];
 
@@ -176,6 +181,8 @@
     if (window.__rhVizRefresh) window.__rhVizRefresh();
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute('content', getComputedStyle(r).getPropertyValue('--bg').trim() || '#F6F7F4');
+    // 앱(안드로이드 · 아이폰): 맨 위 시계 · 배터리 글자색을 테마 밝기에 맞춤 (어두운 테마 → 흰 글자)
+    try { if (PLUG.SystemBars) PLUG.SystemBars.setStyle({ style: resolvedMode() === 'dark' ? 'DARK' : 'LIGHT' }); } catch (e) { /* 무시 */ }
   }
   applyTheme();
   if (darkMQ) {
@@ -215,31 +222,57 @@
   }
 
   /* ---------- 빠르기 (F1) ---------- */
-  const R = 128, CIRC = 2 * Math.PI * R;
+  const R = 128;
   function renderTempo() {
     $('bpmNum').textContent = S.bpm;
+    $('bpmNum').classList.toggle('wide', S.bpm >= 100);
     const name = TEMPO_NAMES.find(function (t) { return S.bpm < t[0]; });
-    const pl = practiceLine();
+    const pl = pracShown() ? '' : practiceLine();
     $('tempoName').textContent = pl || (name[1] + ' · ' + name[2]);
     $('tempoName').classList.toggle('practice', !!pl);
     $('unitNote').textContent = S.unit === 8 ? '♪' : '♩';
     const dial = $('dial');
     dial.setAttribute('aria-valuenow', S.bpm);
     dial.setAttribute('aria-valuetext', S.bpm + ' BPM, ' + name[2]);
-    const frac = Math.min(1, Math.max(0.004, (S.bpm - MIN) / (240 - MIN)));
-    $('dialArc').setAttribute('stroke-dasharray', (CIRC * frac).toFixed(1) + ' ' + CIRC.toFixed(1));
-    const ang = frac * 2 * Math.PI - Math.PI / 2;
+    // v1.6.1: 아래가 트인 300° 다이얼 — 왼쪽 아래 끝 20, 오른쪽 아래 끝 400 (느린 쪽을 넓게 보이게 로그 눈금)
+    const frac = Math.min(1, Math.max(0, Math.log(S.bpm / MIN) / Math.log(MAX / MIN)));
+    $('dialArc').setAttribute('stroke-dasharray', Math.max(0.5, frac * 1000).toFixed(1) + ' 1000');
+    const ang = (120 + 300 * frac) * Math.PI / 180;
     $('dialKnob').setAttribute('cx', (140 + R * Math.cos(ang)).toFixed(1));
     $('dialKnob').setAttribute('cy', (140 + R * Math.sin(ang)).toFixed(1));
+    renderPrac();
   }
 
   function setBpm(v) {
     const nv = clampBpm(v);
     if (nv === S.bpm) return;
     S.bpm = nv;
+    pracStart = nv; // 손으로 바꾸면 연습 계단도 여기서 다시 시작
     engine.set({ bpm: nv });
     renderTempo();
     save();
+  }
+
+  // 끝(20 · 400)에 닿으면: 더 가지 않고 살짝 튕기며 알려 줌
+  let limitT = 0;
+  function hitLimit() {
+    const d = $('dial');
+    if (d.classList.contains('limit')) return;
+    d.classList.add('limit');
+    clearTimeout(limitT);
+    limitT = setTimeout(function () { d.classList.remove('limit'); }, 350);
+    try { if (PLUG.Haptics) PLUG.Haptics.impact({ style: 'MEDIUM' }); else if (navigator.vibrate) navigator.vibrate(15); } catch (e) { /* 무시 */ }
+  }
+  // 끝을 넘겨 계속 돌려도 거기서 멈춤. 반대로 돌리면 바로 다시 움직임 (넘긴 만큼 되감을 필요 없음)
+  function dragTo(st, raw) {
+    if (raw < MIN || raw > MAX) {
+      const edge = raw < MIN ? MIN : MAX;
+      st.base = edge; st.acc = 0;
+      setBpm(edge);
+      hitLimit();
+      return;
+    }
+    setBpm(raw);
   }
 
   // 다이얼 돌리기: 5도마다 1 BPM
@@ -250,28 +283,31 @@
       if (e.target.closest('#bpmBtn')) return;
       const r = dial.getBoundingClientRect();
       const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-      drag = { cx: cx, cy: cy, last: Math.atan2(e.clientY - cy, e.clientX - cx), acc: 0, base: S.bpm };
+      drag = { cx: cx, cy: cy, rmin: r.width * 0.16, last: Math.atan2(e.clientY - cy, e.clientX - cx), acc: 0, base: S.bpm };
       dial.setPointerCapture(e.pointerId);
       dial.classList.add('dragging');
       e.preventDefault();
     });
     dial.addEventListener('pointermove', function (e) {
       if (!drag) return;
-      const a = Math.atan2(e.clientY - drag.cy, e.clientX - drag.cx);
+      const dx = e.clientX - drag.cx, dy = e.clientY - drag.cy;
+      // 손가락이 한가운데를 지나가면 방향이 뒤집혀 숫자가 튀므로 무시
+      if (dx * dx + dy * dy < drag.rmin * drag.rmin) return;
+      const a = Math.atan2(dy, dx);
       let d = a - drag.last;
       if (d > Math.PI) d -= 2 * Math.PI;
       if (d < -Math.PI) d += 2 * Math.PI;
       drag.last = a;
       drag.acc += d * 180 / Math.PI;
-      setBpm(drag.base + Math.round(drag.acc / 5));
+      dragTo(drag, drag.base + Math.round(drag.acc / 5));
     });
     const end = function () { drag = null; dial.classList.remove('dragging'); };
     dial.addEventListener('pointerup', end);
     dial.addEventListener('pointercancel', end);
     dial.addEventListener('keydown', function (e) {
       const step = e.shiftKey ? 10 : 1;
-      if (e.key === 'ArrowRight' || e.key === 'ArrowUp') { setBpm(S.bpm + step); e.preventDefault(); e.stopPropagation(); }
-      if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') { setBpm(S.bpm - step); e.preventDefault(); e.stopPropagation(); }
+      if (e.key === 'ArrowRight' || e.key === 'ArrowUp') { if (S.bpm >= MAX) hitLimit(); setBpm(S.bpm + step); e.preventDefault(); e.stopPropagation(); }
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') { if (S.bpm <= MIN) hitLimit(); setBpm(S.bpm - step); e.preventDefault(); e.stopPropagation(); }
     });
   })();
 
@@ -279,6 +315,7 @@
   function hold(btn, dir) {
     let t1 = null, t2 = null, start = 0;
     const fire = function () {
+      if ((dir < 0 && S.bpm <= MIN) || (dir > 0 && S.bpm >= MAX)) { hitLimit(); return; }
       if (performance.now() - start > 2000) {
         setBpm(dir > 0 ? Math.floor(S.bpm / 5) * 5 + 5 : Math.ceil(S.bpm / 5) * 5 - 5);
       } else {
@@ -341,13 +378,20 @@
       if (!sw.moved && Math.abs(dx) > 10) {
         // 밀기 시작: 방금 누른 탭은 취소
         sw.moved = true;
+        sw.x0 = e.clientX; // 여기서부터 5px마다 1 BPM
         taps = [];
         clearTimeout(tap.reset);
         setBpm(sw.base);
         btn.classList.add('swiping');
       }
       if (sw.moved) {
-        setBpm(sw.base + Math.round((dx > 0 ? dx - 10 : dx + 10) / 5));
+        const raw = sw.base + Math.round((e.clientX - sw.x0) / 5);
+        if (raw < MIN || raw > MAX) {
+          // 끝에서 멈추고, 지금 손가락 위치를 새 기준으로 → 반대로 밀면 바로 움직임
+          const edge = raw < MIN ? MIN : MAX;
+          sw.base = edge; sw.x0 = e.clientX;
+          setBpm(edge); hitLimit();
+        } else setBpm(raw);
         $('tapLabel').textContent = S.bpm;
       }
     });
@@ -783,7 +827,7 @@
       b.addEventListener('click', function () { S.flash = b.dataset.flash; renderScreenSheet(); save(); });
     });
     buildViewGrid();
-    const canVibrate = typeof navigator.vibrate === 'function';
+    const canVibrate = !!PLUG.Haptics || typeof navigator.vibrate === 'function';
     $('vibrate').disabled = !canVibrate;
     if (!canVibrate) $('vibrateNote').textContent = '이 기기의 브라우저는 지원하지 않아요 · 앱 버전에서 지원';
     $('vibrate').addEventListener('change', function (e) { S.vibrate = e.target.checked; save(); });
@@ -915,6 +959,7 @@
     return parts.join(' · ');
   }
   function practiceChanged() {
+    pracStart = S.bpm;
     engine.set({ practice: practiceForEngine() });
     renderPracticeSheet();
     renderTempo();
@@ -1439,7 +1484,11 @@
       ? '지금은 Firebase 설정 전이라 같은 기기의 다른 창끼리만 연결돼요 (시험용). 설정을 넣으면 서로 다른 휴대폰 · 태블릿끼리 연결돼요.'
       : '인터넷으로 연결돼요. 같은 Wi-Fi가 아니어도 되지만, 같은 Wi-Fi면 더 정확해요.';
   }
-  function joinUrl(code) { return location.origin + location.pathname + '#join=' + code; }
+  function joinUrl(code) {
+    // 앱 안에서는 주소가 기기 내부 주소(localhost)라서, QR은 공개 웹 주소로 만듦 → 앱이 없는 학생도 웹으로 바로 참가
+    const web = !NATIVE && /^https?:$/.test(location.protocol) && !/^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+    return (web ? location.origin + location.pathname : WEB_URL) + '#join=' + code;
+  }
   function renderQr(code) {
     const box = $('bandQr');
     box.innerHTML = '';
@@ -1689,10 +1738,13 @@
   /* ---------- 재생 ---------- */
   let wakeLock = null;
   async function requestWake() {
-    if (!S.wake || !('wakeLock' in navigator)) return;
+    if (!S.wake) return;
+    if (PLUG.KeepAwake) { try { await PLUG.KeepAwake.keepAwake(); wakeLock = 'native'; } catch (e) { /* 무시 */ } return; }
+    if (!('wakeLock' in navigator)) return;
     try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) { wakeLock = null; }
   }
   function releaseWake() {
+    if (PLUG.KeepAwake) { try { PLUG.KeepAwake.allowSleep(); } catch (e) { /* 무시 */ } wakeLock = null; return; }
     try { if (wakeLock) wakeLock.release(); } catch (e) { /* 무시 */ }
     wakeLock = null;
   }
@@ -1773,6 +1825,8 @@
 
   function renderPlay() {
     const p = engine.playing;
+    if (p && !pracWasPlaying) pracStart = S.bpm;
+    pracWasPlaying = p;
     if (p && logLast == null) logStart();
     if (!p && logLast != null) logStop();
     renderTempo();
@@ -1837,6 +1891,8 @@
         toast(S.practice.on && S.bpm >= S.practice.target ? '목표 ' + S.bpm + ' BPM에 닿았어요!' : '빠르기 ▲ ' + S.bpm + ' BPM');
         const d = $('dial');
         d.classList.remove('bump'); void d.offsetWidth; d.classList.add('bump');
+        const fb = $('pfBpm');
+        fb.classList.remove('bump'); void fb.offsetWidth; fb.classList.add('bump');
       }
     }
     if (ev.barIndex != null) {
@@ -1856,8 +1912,9 @@
       const peak = ev.pulse === 0 ? (reduceMotion ? 0.18 : 0.32) : 0.14;
       if (f.animate) f.animate([{ opacity: peak }, { opacity: 0 }], { duration: 140, easing: 'ease-out' });
     }
-    if (S.vibrate && ev.level > 0 && navigator.vibrate) {
-      try { navigator.vibrate(ev.pulse === 0 ? 35 : 15); } catch (e) { /* 무시 */ }
+    if (S.vibrate && ev.level > 0) {
+      if (PLUG.Haptics) { try { PLUG.Haptics.impact({ style: ev.pulse === 0 ? 'HEAVY' : 'LIGHT' }); } catch (e) { /* 무시 */ } }
+      else if (navigator.vibrate) { try { navigator.vibrate(ev.pulse === 0 ? 35 : 15); } catch (e) { /* 무시 */ } }
     }
   }
   /* ---------- 진자: 박마다 왼쪽 끝 · 오른쪽 끝에 닿음 ---------- */
@@ -1970,6 +2027,7 @@
     $('vizHit').hidden = S.viewMode !== 'coach';
     $('vizTools').hidden = S.viewMode !== 'coach';
     if (S.viewMode !== 'coach' && coach.mic) micOff();
+    renderPrac();
     if (vz) {
       if (!vizObj) vizObj = window.RHViz.create($('vizCanvas'));
       const m = VIEW_LIST.find(function (v) { return v[0] === S.viewMode; });
@@ -1978,6 +2036,147 @@
       drawViz();
     }
   }
+  /* ---------- v1.6.1: 연습 계기판 · 크게 보기 ---------- */
+  let pracStart = null, pracWasPlaying = false, pracLadderKey = '';
+  function mmssUp(sec) { // 흐른 시간은 내림 (0:59 다음에 1:00)
+    sec = Math.max(0, Math.floor(sec));
+    const h = Math.floor(sec / 3600), m = Math.floor(sec / 60) % 60, x = String(sec % 60).padStart(2, '0');
+    return h ? h + ':' + String(m).padStart(2, '0') + ':' + x : m + ':' + x;
+  }
+  function pracShown() {
+    if (!(S.practice.on || S.timer > 0)) return false;
+    try { if (band.sync && band.sync.role) return false; } catch (e) { /* 아직 준비 전 */ }
+    return true;
+  }
+  function todaySec() {
+    try { const d = LOG.days[dayKey()]; return d ? d.s : 0; } catch (e) { return 0; }
+  }
+  function pracData() {
+    const P = S.practice;
+    const run = !!(engine.playing && !engine.program && !engine.follow && engine.ctx);
+    const now = run ? engine.ctx.currentTime : 0;
+    const elapsed = run ? now - engine.startedAt : 0;
+    const start = run && pracStart != null ? Math.min(pracStart, S.bpm) : S.bpm;
+    const d = { run: run, elapsed: elapsed, P: P, start: start, n: 0, cur: 0 };
+    if (P.on && P.target > start) {
+      d.n = Math.ceil((P.target - start) / P.step);
+      d.cur = Math.max(0, Math.min(d.n, Math.ceil((S.bpm - start) / P.step - 1e-6)));
+      if (S.bpm >= P.target) d.cur = d.n;
+    }
+    d.reached = P.on && S.bpm >= P.target;
+    d.info = run && P.on ? engine.practiceInfo(now) : null;
+    return d;
+  }
+  function renderPrac() {
+    const home = $('viewHome');
+    if (!home) return;
+    const show = pracShown();
+    const big = show && !!S.pracBig;
+    home.classList.toggle('practicing', show);
+    home.classList.toggle('focus', big);
+    $('prac').hidden = !show;
+    $('prac').classList.toggle('slim', show && isViz());
+    home.classList.toggle('pr-slim', show && isViz());
+    $('pfocus').hidden = !big;
+    if (!show) return;
+    const d = pracData(), P = d.P;
+    const timerLeft = S.timer ? S.timer * 60 - d.elapsed : 0;
+
+    // 왼쪽: 연습한 시간
+    $('pcElapsed').textContent = mmssUp(d.elapsed);
+    $('pfElapsed').textContent = mmssUp(d.elapsed);
+    $('pcElapsedSub').textContent = (P.on && S.timer) ? '⏱ 남은 ' + mmss(timerLeft) : '오늘 ' + fmtToday();
+
+    // 오른쪽: 다음 빠르기까지 (연습 모드) 또는 남은 시간 (타이머만)
+    let lbl, val, frac = 0, done = false, sub = '';
+    if (!P.on) {
+      lbl = '남은 연습 시간';
+      val = mmss(timerLeft);
+      frac = S.timer ? Math.min(1, d.elapsed / (S.timer * 60)) : 0;
+      sub = '끝나면 마디 끝에서 멈춰요';
+    } else if (d.reached) {
+      done = true;
+      lbl = '목표 도달!';
+      val = P.target + '<small>BPM</small>';
+      sub = '이 빠르기로 계속해요';
+    } else {
+      const nxt = Math.min(P.target, S.bpm + P.step);
+      lbl = '다음 <b>▲ ' + nxt + '</b> 까지';
+      if (d.info) {
+        if (d.info.bars != null) { val = d.info.bars + '<small>마디</small>'; frac = (P.every - d.info.bars) / P.every; }
+        else { val = mmss(d.info.sec); frac = 1 - d.info.sec / (P.every * 60); }
+      } else {
+        val = P.unit === 'bar' ? P.every + '<small>마디</small>' : mmss(P.every * 60);
+      }
+    }
+    frac = Math.max(0, Math.min(1, frac));
+    $('pcNextTile').classList.toggle('done', done);
+    $('pcNextTile').classList.toggle('next', !done);
+    $('pcNextLbl').innerHTML = lbl;
+    $('pcNext').innerHTML = val;
+    $('pcBarWrap').hidden = done;
+    $('pcBar').style.width = (frac * 100).toFixed(1) + '%';
+    $('pcNextSub').hidden = !done;
+    $('pcNextSub').textContent = sub;
+    // 크게 보기
+    $('pfBpm').textContent = S.bpm;
+    $('pfBpm').classList.toggle('wide', S.bpm >= 100);
+    $('pfLab').innerHTML = (S.unit === 8 ? '♪' : '♩') + ' = BPM' + (P.on ? ' · 목표 <b>' + P.target + '</b>' : '');
+    $('pfNextLbl').innerHTML = lbl;
+    $('pfCd').innerHTML = val;
+    $('pfBarWrap').hidden = done;
+    $('pfBar').style.width = (frac * 100).toFixed(1) + '%';
+    $('pfocus').querySelector('.pf-next').classList.toggle('done', done);
+
+    // 계단: 시작 → 목표
+    $('pcLadder').hidden = !(P.on && d.n);
+    let cap = '';
+    if (P.on && d.n) {
+      const key = d.start + '|' + P.target + '|' + d.n + '|' + d.cur;
+      if (key !== pracLadderKey) {
+        pracLadderKey = key;
+        $('pcFrom').textContent = d.start;
+        $('pcTo').textContent = P.target;
+        const box = $('pcSteps');
+        box.innerHTML = '';
+        const m = Math.min(d.n, 30); // 너무 많으면 묶어서 보여 줌
+        const curM = Math.floor(d.cur * m / d.n);
+        for (let i = 0; i < m; i++) {
+          const el = document.createElement('i');
+          el.style.height = (30 + 70 * (m > 1 ? i / (m - 1) : 1)).toFixed(0) + '%';
+          if (d.cur >= d.n || i < curM) el.className = 'st-ok';
+          else if (i === curM) el.className = 'st-cur';
+          box.appendChild(el);
+        }
+      }
+      const stepNo = Math.min(d.n, d.cur + (d.reached ? 0 : 1));
+      if (d.reached) cap = '<b>' + d.n + ' / ' + d.n + '</b> 단계 · 목표 완료';
+      else {
+        const leftSteps = d.n - d.cur;
+        let left;
+        if (P.unit === 'bar') left = '약 ' + leftSteps * P.every + '마디';
+        else {
+          const sec = (leftSteps - 1) * P.every * 60 + (d.info && d.info.sec != null ? d.info.sec : P.every * 60);
+          left = '약 ' + Math.max(1, Math.ceil(sec / 60)) + '분';
+        }
+        cap = '<b>' + stepNo + ' / ' + d.n + '</b> 단계 · 목표까지 ' + left;
+      }
+    } else if (P.on) {
+      cap = '목표(' + P.target + ')를 지금 빠르기보다 높여 주세요';
+    } else {
+      cap = '⏱ ' + S.timer + '분 타이머';
+    }
+    $('pcCap').innerHTML = cap;
+    $('pfStage').innerHTML = cap;
+  }
+  function fmtToday() {
+    const m = Math.floor(todaySec() / 60);
+    if (m < 1) return '1분 미만';
+    return m >= 60 ? Math.floor(m / 60) + '시간 ' + (m % 60) + '분' : m + '분';
+  }
+  $('pcBig').addEventListener('click', function () { S.pracBig = true; renderPrac(); save(); });
+  $('pfBack').addEventListener('click', function () { S.pracBig = false; renderPrac(); save(); });
+
   /* ---------- 박 흐름 보조 화면 (프로) ---------- */
   function vizState(now) {
     const beats = (pend && pend.beats) || S.beats;
@@ -2226,5 +2425,5 @@
   });
 
   // 시험용
-  window.__rh = { band: band, bandRole: bandRole, skins: SKINS, applyTheme: applyTheme, engine: engine, state: function () { return S; }, setMeter: setMeter, setBpm: setBpm, log: function () { return LOG; }, renderLog: function () { renderLog(); } };
+  window.__rh = { band: band, bandRole: bandRole, skins: SKINS, applyTheme: applyTheme, engine: engine, state: function () { return S; }, setMeter: setMeter, setBpm: setBpm, renderViewMode: function () { renderViewMode(); }, log: function () { return LOG; }, renderLog: function () { renderLog(); } };
 })();

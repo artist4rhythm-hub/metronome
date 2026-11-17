@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>개인정보처리방침 · 리듬 하우스 메트로놈</title>
+<meta name="color-scheme" content="light dark">
+<style>
+  :root {
+    --bg: #F6F7F4; --surface: #FFFFFF; --ink: #14231B; --quiet: #556058; --line: #DDE3DE; --brand: #123B2A;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #101418; --surface: #171D21; --ink: #E8EEEA; --quiet: #A3AEA8; --line: #2A3238; --brand: #7FC8A0; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', system-ui, sans-serif;
+    font-size: 15px; line-height: 1.7;
+    padding: calc(16px + var(--safe-area-inset-top, env(safe-area-inset-top, 0px))) 16px calc(32px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
+  }
+  main { max-width: 720px; margin: 0 auto; }
+  .back { display: inline-block; margin-bottom: 12px; color: var(--brand); text-decoration: none; font-weight: 600; }
+  h1 { font-size: 22px; margin: 4px 0 4px; }
+  .date { color: var(--quiet); margin: 0 0 20px; font-size: 13px; }
+  h2 { font-size: 16px; margin: 26px 0 8px; padding-top: 14px; border-top: 1px solid var(--line); }
+  p, li { margin: 6px 0; }
+  ul { padding-left: 20px; margin: 6px 0; }
+  .box { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin: 10px 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 8px 0; }
+  th, td { border: 1px solid var(--line); padding: 7px 8px; text-align: left; vertical-align: top; }
+  th { background: var(--surface); width: 30%; font-weight: 600; }
+  .quiet { color: var(--quiet); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <a class="back" href="./">← 메트로놈으로</a>
+  <h1>개인정보처리방침</h1>
+  <p class="date">리듬 하우스 메트로놈 · 시행일 2026년 11월 11일</p>
+
+  <div class="box">
+    <strong>한눈에 보기</strong>
+    <ul>
+      <li>회원가입이 없고, 이름 · 전화번호 · 이메일을 받지 않아요.</li>
+      <li>연습 기록과 설정은 <strong>내 기기 안에만</strong> 저장돼요.</li>
+      <li>마이크 소리는 기기 안에서만 분석하고, <strong>녹음 · 저장 · 전송하지 않아요</strong>.</li>
+      <li>합주 모드를 쓸 때만, 박을 맞추는 데 필요한 최소한의 정보가 잠시 서버를 거쳐요.</li>
+      <li>광고와 추적 도구가 없어요.</li>
+    </ul>
+  </div>
+
+  <h2>1. 처리하는 정보와 목적</h2>
+  <table>
+    <tr><th>기기 안에만 저장</th><td>템포 · 박자 · 소리 · 테마 같은 설정, 곡 지도, 연습 시간 기록. 서버로 보내지 않으며, 앱을 지우면 함께 지워져요.</td></tr>
+    <tr><th>마이크<br><span class="quiet">(타이밍 코치를 켤 때만)</span></th><td>연주 소리가 박보다 빠른지 늦은지 알려 주기 위해 기기 안에서 실시간으로 분석해요. 소리를 녹음하거나 저장하거나 다른 곳으로 보내지 않아요. 마이크 권한은 언제든 기기 설정에서 끌 수 있어요.</td></tr>
+    <tr><th>합주 모드<br><span class="quiet">(방을 만들거나 참가할 때만)</span></th><td>
+      <ul>
+        <li>무작위로 만들어지는 익명 식별자(실제 신원과 연결되지 않음)</li>
+        <li>내가 입력한 표시 이름(선택 · 20자 이내)</li>
+        <li>방 코드, 참가 시각, 템포 · 박자 같은 합주 설정</li>
+        <li>박을 맞추기 위한 시계 차이 · 응답 시간 측정값</li>
+      </ul>
+      목적: 여러 기기가 같은 순간에 박을 치도록 맞추는 것뿐이에요.
+    </td></tr>
+  </table>
+
+  <h2>2. 보관 기간과 삭제</h2>
+  <ul>
+    <li>참가자 정보(표시 이름, 측정값)는 방에서 나가거나 연결이 끊기면 <strong>바로 삭제</strong>돼요.</li>
+    <li>리더가 방을 닫으면 방 전체가 삭제돼요.</li>
+    <li>연결이 갑자기 끊겨 남은 방에는 익명 식별자와 템포 설정만 남을 수 있으며, 운영자가 정기적으로(최소 월 1회) 삭제해요.</li>
+  </ul>
+
+  <h2>3. 처리 위탁 및 국외 이전</h2>
+  <p>합주 모드의 실시간 연결을 위해 아래 서비스를 이용해요.</p>
+  <table>
+    <tr><th>받는 곳</th><td>Google LLC (Firebase 익명 인증 · Realtime Database)</td></tr>
+    <tr><th>이전 국가</th><td>싱가포르 (데이터베이스 서버 위치), 인증은 Google의 전 세계 서버</td></tr>
+    <tr><th>이전 항목</th><td>1번 표의 "합주 모드" 항목</td></tr>
+    <tr><th>이전 시기 · 방법</th><td>합주 방을 만들거나 참가할 때, 암호화된 인터넷 연결(HTTPS)로 전송</td></tr>
+    <tr><th>보유 기간</th><td>2번에 적힌 기간</td></tr>
+  </table>
+  <p>합주 모드를 쓰지 않으면 이 이전은 일어나지 않아요. 합주 모드를 쓰지 않는 것으로 거부할 수 있고, 그래도 메트로놈의 다른 기능은 모두 쓸 수 있어요.</p>
+  <p>화면 글꼴을 불러올 때 Google Fonts에 접속하며, 이때 인터넷 접속에 필요한 정보(IP 주소 등)가 Google에 전달될 수 있어요.</p>
+
+  <h2>4. 제3자 제공 · 광고 · 추적</h2>
+  <p>정보를 다른 곳에 팔거나 제공하지 않아요. 광고, 분석 도구, 기기 간 추적을 쓰지 않아요.</p>
+
+  <h2>5. 어린이</h2>
+  <p>회원가입이 없어 나이를 묻지 않아요. 합주 모드의 표시 이름에는 실명 대신 별명을 쓰도록 권장해요.</p>
+
+  <h2>6. 이용자의 권리</h2>
+  <ul>
+    <li>기기 안의 정보: 앱을 지우거나 브라우저의 사이트 데이터를 지우면 모두 삭제돼요.</li>
+    <li>합주 모드 정보: 방에서 나가면 바로 삭제돼요. 그 밖에 열람 · 정정 · 삭제 · 처리정지를 원하면 아래로 연락해 주세요. 지체 없이 처리해요.</li>
+  </ul>
+
+  <h2>7. 개인정보 보호책임자 · 문의</h2>
+  <table>
+    <tr><th>운영</th><td>리듬 하우스</td></tr>
+    <tr><th>보호책임자</th><td id="ownerName">[책임자 이름]</td></tr>
+    <tr><th>문의</th><td id="ownerMail">[문의 이메일]</td></tr>
+  </table>
+  <p class="quiet">개인정보 침해 신고 · 상담: 개인정보침해신고센터(국번 없이 118, privacy.kisa.or.kr), 개인정보분쟁조정위원회(1833-6972, www.kopico.go.kr)</p>
+
+  <h2>8. 방침의 변경</h2>
+  <p>내용이 바뀌면 이 페이지와 앱 업데이트 안내로 알려 드려요.</p>
+</main>
+</body>
+</html>

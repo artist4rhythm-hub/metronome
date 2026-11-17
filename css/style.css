@@ -302,12 +302,20 @@ button { font: inherit; color: inherit; }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 
 .app { height: 100%; display: flex; flex-direction: column; }
+/* v1.6.1: 아이폰 위 · 아래 빈 띠 — 앱 안쪽만 비켜 두고, 아래 메뉴 띠는 화면 끝까지 칠함.
+   .app 은 "쓸 수 있는 높이"의 기준이 되어(cqh), 위아래 띠를 뺀 높이로 크기를 맞춤 */
+.app {
+  padding-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
+  padding-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+  container: app / size;
+}
+.tabs { margin-bottom: calc(-1 * var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))); padding-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)); }
 .top, .home, .view, .tabs-inner {
   width: 100%;
   max-width: 520px;
   margin-inline: auto;
-  padding-left: max(16px, env(safe-area-inset-left, 0px));
-  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-left: max(16px, var(--safe-area-inset-left, env(safe-area-inset-left, 0px)));
+  padding-right: max(16px, var(--safe-area-inset-right, env(safe-area-inset-right, 0px)));
 }
 
 /* 머리줄 */
@@ -336,6 +344,7 @@ button { font: inherit; color: inherit; }
 
 .dial {
   --d: min(280px, 72vw, 36vh);
+  --d: min(280px, 72cqw, 36cqh);
   position: relative; width: var(--d); height: var(--d);
   touch-action: none; cursor: grab; border-radius: 50%; flex-shrink: 0;
 }
@@ -343,6 +352,11 @@ button { font: inherit; color: inherit; }
 .dial svg { width: 100%; height: 100%; display: block; }
 .dial-track { fill: none; stroke: var(--track); stroke-width: 14; }
 .dial-arc { fill: none; stroke: var(--brand); stroke-width: 14; stroke-linecap: round; }
+.dial-track { stroke-linecap: round; }
+.dial-end { fill: var(--quiet); font-family: var(--font-num); font-size: 15px; font-weight: 500; }
+.dial.limit svg { animation: dialLimit 0.32s ease-out; }
+@keyframes dialLimit { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 60% { transform: translateX(4px); } }
+@media (prefers-reduced-motion: reduce) { .dial.limit svg { animation: none; } }
 .dial-knob { fill: var(--surface); stroke: var(--brand); stroke-width: 3; }
 .dial-center {
   position: absolute; inset: 17%;
@@ -355,6 +369,7 @@ button { font: inherit; color: inherit; }
   font-size: calc(var(--d) * 0.31); line-height: 1; letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
 }
+.bpm-num.wide { font-size: calc(var(--d) * 0.27); }
 .bpm-unit { font-size: clamp(11px, calc(var(--d) * 0.047), 13px); font-weight: 500; letter-spacing: 0.1em; color: var(--quiet); }
 .tempo-name { font-size: clamp(11px, calc(var(--d) * 0.047), 13px); color: var(--quiet); margin-top: 4px; white-space: nowrap; }
 
@@ -403,7 +418,7 @@ button { font: inherit; color: inherit; }
 .tap.swiping .tap-arrow { color: var(--brand); }
 
 /* 진자 */
-.pendulum { width: min(330px, 86vw, 35vh); flex-shrink: 0; margin-block: -4px; }
+.pendulum { width: min(330px, 86vw, 35vh); width: min(330px, 86cqw, 35cqh); flex-shrink: 0; margin-block: -4px; }
 .pendulum svg { width: 100%; height: auto; display: block; overflow: visible; }
 .pend-track { fill: none; stroke: var(--track); stroke-width: 6; stroke-linecap: round; }
 .pend-tick { stroke: var(--quiet); stroke-width: 2.5; stroke-linecap: round; }
@@ -495,9 +510,9 @@ button { font: inherit; color: inherit; }
   overflow-y: auto; overscroll-behavior: contain;
   background: var(--surface); border-radius: 24px 24px 0 0;
   padding-top: 6px;
-  padding-left: max(20px, env(safe-area-inset-left, 0px));
-  padding-right: max(20px, env(safe-area-inset-right, 0px));
-  padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  padding-left: max(20px, var(--safe-area-inset-left, env(safe-area-inset-left, 0px)));
+  padding-right: max(20px, var(--safe-area-inset-right, env(safe-area-inset-right, 0px)));
+  padding-bottom: calc(20px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
   transform: translateY(100%); transition: transform 0.22s ease;
   user-select: text; -webkit-user-select: text;
 }
@@ -583,7 +598,7 @@ button { font: inherit; color: inherit; }
 .bpm-input span { font-size: 15px; color: var(--quiet); }
 
 .toast {
-  position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom, 0px)); z-index: 30;
+  position: fixed; left: 50%; bottom: calc(96px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))); z-index: 30;
   transform: translate(-50%, 12px); opacity: 0; pointer-events: none;
   max-width: calc(100% - 32px);
   background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 20px;
@@ -897,9 +912,9 @@ button { font: inherit; color: inherit; }
 .skin-grid + .hint { margin-bottom: 10px; }
 
 /* ---------- v1.4: 박 흐름 보조 화면 (프로) ---------- */
-.viz { position: relative; width: min(380px, 92vw); height: clamp(100px, 16.5vh, 160px); flex-shrink: 0; }
+.viz { position: relative; width: min(380px, 92vw); height: clamp(100px, 16.5vh, 160px); height: clamp(100px, 16.5cqh, 160px); flex-shrink: 0; }
 .viz canvas { width: 100%; height: 100%; display: block; }
-.viz.coach { height: clamp(116px, 16.5vh, 170px); }
+.viz.coach { height: clamp(116px, 16.5vh, 170px); height: clamp(116px, 16.5cqh, 170px); }
 .viz-hit {
   position: absolute; inset: 0; border: none; background: transparent; border-radius: 16px; cursor: pointer;
   touch-action: manipulation; -webkit-user-select: none; user-select: none;
@@ -968,3 +983,120 @@ body.band-member .dial, body.band-member .adjust, body.band-member #chipMeter, b
 .band-btn[aria-pressed="true"] { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
 .btn-secondary { min-height: 44px; padding: 0 16px; border-radius: 12px; border: 1.5px solid var(--brand); background: var(--surface); color: var(--ink); font-weight: 700; font-size: 15px; cursor: pointer; }
 .btn-secondary:disabled, .btn-primary:disabled { opacity: 0.5; cursor: default; }
+
+/* 설정 맨 아래: 버전 · 개인정보처리방침 */
+.about-line { margin: 22px 0 4px; font-size: 13px; color: var(--quiet); text-align: center; }
+.about-line a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+
+/* v1.6.1: 화면 높이 대신 "앱이 쓸 수 있는 높이"로 판단 (아이폰 위아래 띠 제외) */
+@container app (max-height: 780px) {
+  .home { gap: 6px; }
+  .dial { --d: min(250px, 66cqw, 31cqh); }
+  .pendulum { width: min(290px, 78cqw, 34cqh); }
+  .score { width: min(340px, 86cqw); }
+  .beat { min-height: 46px; gap: 4px; }
+  .round, .tap { height: 52px; }
+  .round { width: 52px; }
+  .play { width: 68px; height: 68px; }
+  .viz, .viz.coach { height: clamp(100px, 15.5cqh, 140px); }
+}
+@container app (max-height: 680px) {
+  .dial { --d: min(210px, 58cqw, 28cqh); }
+  .pendulum { width: min(230px, 64cqw); }
+  .score { width: min(290px, 78cqw); }
+  .chip { min-height: 40px; }
+  .play { width: 60px; height: 60px; }
+  .viz, .viz.coach { height: clamp(92px, 14.5cqh, 118px); width: min(340px, 88cqw); }
+}
+@container app (min-width: 700px) and (min-height: 700px) {
+  .dial { --d: min(340px, 40cqh); }
+  .pendulum { width: min(330px, 31cqh); }
+  .score { width: min(380px, 40cqh); }
+  .viz, .viz.coach { width: min(440px, 50cqh); height: clamp(110px, 13.5cqh, 170px); }
+}
+
+/* ---------- v1.6.1: 연습 계기판 (연습 모드 · 타이머를 켜면 진자 자리에) ---------- */
+.prac { width: min(380px, 92vw); width: min(380px, 92cqw); flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; }
+.home.practicing .dial { --d: min(232px, 60vw, 26vh); --d: min(232px, 60cqw, 26cqh); }
+.home.practicing { gap: 6px; }
+@container app (max-height: 700px) {
+  .home.practicing .dial { --d: min(160px, 45cqw, 24cqh); }
+  .home.pr-slim .dial { --d: min(150px, 42cqw, 22cqh); }
+  .home.practicing .dial-end { display: none; }
+  .prac-ladder { display: none !important; }
+  .prac .pl-foot { justify-content: center; margin-top: 0; }
+  .home.practicing { gap: 2px; padding-block: 2px; }
+  .prac .pc-big { min-height: 30px; }
+  .home.pr-slim .dial { --d: min(140px, 40cqw, 21cqh); }
+  .home.pr-slim .tempo-name { display: none; }
+  .prac-tile { padding: 6px 10px 8px; }
+  .pt-val { font-size: 26px; }
+}
+.prac-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.prac-tile {
+  border: 1px solid var(--line); background: var(--surface); border-radius: 18px;
+  padding: 8px 12px 10px; display: flex; flex-direction: column; gap: 2px; min-width: 0;
+}
+.pt-label { font-size: 13px; color: var(--quiet); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pt-label b { color: var(--ink); font-weight: 700; }
+.pt-val { font-family: var(--font-num); font-weight: 700; font-size: clamp(28px, 9vw, 38px); font-size: clamp(28px, 9cqw, 38px); line-height: 1.05; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.pt-val small { font-size: 0.5em; font-weight: 500; margin-left: 2px; letter-spacing: 0; }
+.pt-sub { font-size: 12px; color: var(--quiet); font-variant-numeric: tabular-nums; }
+.prac-tile.next { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, var(--surface)); }
+.prac-tile.next .pt-val { color: var(--accent-ink); }
+.prac-tile.done { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 10%, var(--surface)); }
+.prac-tile.done .pt-val { color: var(--brand); }
+.pt-bar { height: 6px; border-radius: 3px; background: var(--track); overflow: hidden; margin-top: 6px; }
+.pt-bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.25s linear; }
+.prac-ladder { display: flex; align-items: center; gap: 8px; }
+.pl-end { font-family: var(--font-num); font-weight: 700; font-size: 14px; color: var(--quiet); min-width: 26px; text-align: center; font-variant-numeric: tabular-nums; }
+.pl-steps { flex: 1; display: flex; gap: 3px; align-items: flex-end; height: 18px; }
+.pl-steps i { flex: 1; min-width: 2px; border-radius: 3px; background: var(--track); }
+.pl-steps i.st-ok { background: var(--brand); }
+.pl-steps i.st-cur { background: var(--accent); }
+.pl-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: -2px; }
+.pl-cap { font-size: 13px; color: var(--quiet); font-variant-numeric: tabular-nums; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@container app (max-height: 700px) { .pl-cap { display: none; } .pt-sub { display: none; } }
+.pl-cap b { color: var(--ink); }
+
+.pc-big {
+  flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 0 12px;
+  border-radius: 17px; border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  font-size: 13px; font-weight: 700; cursor: pointer;
+}
+/* 연습 계기판이 보이면: 진자 · 악보 자리를 대신하고 다이얼을 조금 줄임 */
+.home.practicing #pendulum, .home.practicing #score { display: none !important; }
+/* 박 흐름(프로) 화면과 함께일 때는 계단을 접고 한 줄로 얇게 */
+.prac.slim { flex-direction: row; align-items: stretch; gap: 8px; }
+.prac.slim .prac-tiles { flex: 1; min-width: 0; }
+.prac.slim .prac-ladder, .prac.slim .pt-sub, .prac.slim .pl-cap { display: none !important; }
+.prac.slim .pt-val { font-size: 24px; }
+.prac.slim .pt-label { font-size: 12px; }
+.prac.slim .prac-tile { padding: 5px 10px 7px; }
+.prac.slim .pt-bar { margin-top: 4px; }
+.prac.slim .pl-foot { margin: 0; }
+.prac.slim .pc-big { flex-direction: column; justify-content: center; gap: 2px; height: 100%; padding: 0 8px; border-radius: 14px; font-size: 11px; }
+.home.pr-slim .dial { --d: min(200px, 54vw, 22vh); --d: min(200px, 54cqw, 22cqh); }
+
+/* 크게 보기 */
+.home.focus > *:not(.pfocus):not(.beats):not(.play) { display: none !important; }
+.pfocus { width: min(440px, 94vw); width: min(440px, 94cqw); flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: space-evenly; align-items: center; gap: 4px; }
+.pf-top { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pf-elapsed { font-size: 15px; color: var(--quiet); font-weight: 500; white-space: nowrap; }
+.pf-elapsed b { color: var(--ink); font-family: var(--font-num); font-size: 26px; margin-left: 4px; font-variant-numeric: tabular-nums; }
+.pf-bpm-wrap { text-align: center; }
+.pf-bpm { font-family: var(--font-num); font-weight: 700; line-height: 0.9; letter-spacing: -0.03em; font-variant-numeric: tabular-nums;
+  font-size: min(150px, 38vw, 18vh); font-size: min(150px, 38cqw, 18cqh); }
+.pf-bpm.wide { font-size: min(130px, 31vw, 16vh); font-size: min(130px, 31cqw, 16cqh); }
+.pf-bpm.bump { animation: bump 0.5s ease-out; }
+.pf-lab { font-size: 15px; color: var(--quiet); text-align: center; font-variant-numeric: tabular-nums; }
+.pf-lab b { color: var(--ink); }
+.pf-next { width: 100%; text-align: center; }
+.pf-cd { font-family: var(--font-num); font-weight: 700; line-height: 1; color: var(--accent-ink); font-variant-numeric: tabular-nums;
+  font-size: min(88px, 23vw, 11vh); font-size: min(88px, 23cqw, 11cqh); }
+.pf-cd small { font-size: 0.45em; margin-left: 4px; }
+.pf-next.done .pf-cd { color: var(--brand); }
+.pf-bar { height: 10px; border-radius: 5px; margin-top: 8px; }
+.pf-stage { font-size: 14px; color: var(--quiet); margin-top: 8px; font-variant-numeric: tabular-nums; }
+.pf-stage b { color: var(--ink); }
+.home.focus .play { margin-top: 4px; }

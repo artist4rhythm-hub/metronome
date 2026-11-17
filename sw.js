@@ -1,6 +1,6 @@
 /* 리듬 하우스 메트로놈 — 오프라인 저장
    새 버전을 올릴 때마다 아래 CACHE 이름의 숫자를 바꿔 주세요. */
-const CACHE = 'rhm-v1-5-1';
+const CACHE = 'rhm-v1-6-1';
 const FILES = [
   './',
   './index.html',
@@ -13,6 +13,8 @@ const FILES = [
   './js/sync.js',
   './js/app.js',
   './js/songs.js',
+  './js/vendor/qrcode.js',
+  './privacy.html',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png'

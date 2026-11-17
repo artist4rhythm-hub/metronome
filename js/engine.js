@@ -91,6 +91,10 @@
     }
     const AC = global.AudioContext || global.webkitAudioContext;
     if (!AC) throw new Error('no-audio');
+    // 아이폰 무음 스위치가 켜져 있어도 소리가 나게 (사파리 웹 · 홈 화면 앱)
+    // 앱(Capacitor) 안에서는 네이티브 쪽에서 "재생 + 다른 앱 소리와 섞기"로 설정하므로 건드리지 않음
+    const native = global.Capacitor && global.Capacitor.isNativePlatform && global.Capacitor.isNativePlatform();
+    if (!native) { try { if (global.navigator.audioSession) global.navigator.audioSession.type = 'playback'; } catch (e) { /* 무시 */ } }
     this.ctx = new AC({ latencyHint: 'interactive' });
     this.master = this.ctx.createGain();
     this.master.connect(this.ctx.destination);

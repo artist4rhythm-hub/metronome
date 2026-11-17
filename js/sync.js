@@ -20,83 +20,90 @@
   const uid0 = function () { let s = ''; for (let i = 0; i < 20; i++) s += ALPHA[Math.floor(Math.random() * ALPHA.length)]; return s; };
   const makeCode = function () { let s = ''; for (let i = 0; i < 6; i++) s += ALPHA[Math.floor(Math.random() * ALPHA.length)]; return s; };
 
-  function loadScript(src) {
-    return new Promise(function (res, rej) {
-      if (document.querySelector('script[data-src="' + src + '"]')) { res(); return; }
-      const s = document.createElement('script');
-      s.src = src; s.async = false; s.dataset.src = src;
-      s.onload = function () { res(); };
-      s.onerror = function () { rej(new Error('load ' + src)); };
-      document.head.appendChild(s);
-    });
+  /* ---------- 연결 1: Firebase 실시간 데이터베이스 ----------
+     모듈 방식 SDK(js/vendor/fb)를 씀. 로그인은 팝업 · 리다이렉트용 숨은 창을 띄우지 않는 방식으로 초기화해서
+     아이폰 · 안드로이드 앱(Capacitor) 안에서도 멈추지 않음 */
+  let FB = null;
+  async function loadFB() {
+    if (FB) return FB;
+    const base = new URL('js/vendor/fb/', document.baseURI).href;
+    const mods = await Promise.all([
+      import(base + 'firebase-app.js'),
+      import(base + 'firebase-auth.js'),
+      import(base + 'firebase-database.js')
+    ]);
+    FB = { app: mods[0], auth: mods[1], db: mods[2] };
+    return FB;
   }
-
-  /* ---------- 연결 1: Firebase 실시간 데이터베이스 ---------- */
   function FirebaseBus(cfg, emu) {
-    this.cfg = cfg; this.emu = emu; this.room = null; this.offs = [];
+    this.cfg = cfg; this.emu = emu; this.room = null; this.subs = [];
   }
   FirebaseBus.prototype.kind = 'firebase';
   FirebaseBus.prototype.init = async function () {
     if (this.db) return this.uid;
-    if (!global.firebase || !global.firebase.database) {
-      await loadScript('js/vendor/firebase-app-compat.js');
-      await loadScript('js/vendor/firebase-auth-compat.js');
-      await loadScript('js/vendor/firebase-database-compat.js');
-    }
-    const fb = global.firebase;
-    const app = fb.apps.find(function (a) { return a.name === 'rhm-sync'; }) || fb.initializeApp(this.cfg, 'rhm-sync');
-    const auth = app.auth();
-    if (this.emu) auth.useEmulator('http://' + this.emu.auth);
-    const db = app.database();
-    if (this.emu) db.useEmulator(this.emu.dbHost, this.emu.dbPort);
-    const cred = await auth.signInAnonymously();
+    const F = await loadFB();
+    const A = F.auth, D = F.db;
+    let app = F.app.getApps().find(function (x) { return x.name === 'rhm-sync'; });
+    let auth;
+    if (!app) {
+      app = F.app.initializeApp(this.cfg, 'rhm-sync');
+      auth = A.initializeAuth(app, { persistence: [A.indexedDBLocalPersistence, A.browserLocalPersistence, A.inMemoryPersistence] });
+      if (this.emu) A.connectAuthEmulator(auth, 'http://' + this.emu.auth, { disableWarnings: true });
+    } else auth = A.getAuth(app);
+    const db = D.getDatabase(app, this.cfg.databaseURL);
+    if (this.emu && !db._rhEmu) { D.connectDatabaseEmulator(db, this.emu.dbHost, this.emu.dbPort); db._rhEmu = true; }
+    const cred = await A.signInAnonymously(auth);
     this.uid = cred.user.uid;
     this.db = db;
-    this.TS = fb.database.ServerValue.TIMESTAMP;
+    this.D = D;
     return this.uid;
   };
-  FirebaseBus.prototype.ref = function (p) { return this.db.ref('rooms/' + this.code + (p ? '/' + p : '')); };
+  FirebaseBus.prototype.ref = function (p) { return this.D.ref(this.db, 'rooms/' + this.code + (p ? '/' + p : '')); };
   FirebaseBus.prototype.create = async function (code, meta) {
     this.code = code;
-    const r = await this.ref('meta').transaction(function (cur) { return cur ? undefined : meta; });
+    const r = await this.D.runTransaction(this.ref('meta'), function (cur) { return cur ? undefined : meta; });
     if (!r.committed) throw new Error('code-taken');
   };
   FirebaseBus.prototype.exists = async function (code) {
     this.code = code;
-    const s = await this.ref('meta').once('value');
+    const s = await this.D.get(this.ref('meta'));
     return s.exists();
   };
   FirebaseBus.prototype.open = function (code, h) {
     this.code = code;
-    const self = this;
+    const self = this, D = this.D;
     this.subs = [];
-    const on = function (path, ev, fn) { const r = self.ref(path); r.on(ev, fn); self.subs.push([r, ev, fn]); };
-    on('meta', 'value', function (s) { h.meta(s.val()); });
-    on('state', 'value', function (s) { h.state(s.val()); });
-    on('members', 'value', function (s) { h.members(s.val() || {}); });
-    on('pong/' + this.uid, 'value', function (s) { const v = s.val(); if (v) h.pong(v); });
+    const on = function (path, fn, ev) {
+      const r = self.ref(path);
+      const un = ev === 'added' ? D.onChildAdded(r, fn) : ev === 'changed' ? D.onChildChanged(r, fn) : D.onValue(r, fn);
+      self.subs.push(un);
+    };
+    on('meta', function (s) { h.meta(s.val()); });
+    on('state', function (s) { h.state(s.val()); });
+    on('members', function (s) { h.members(s.val() || {}); });
+    on('pong/' + this.uid, function (s) { const v = s.val(); if (v) h.pong(v); });
     // 리더일 때만 의미 있음: 따라가는 기기들의 질문
-    on('ping', 'child_added', function (s) { h.ping(s.key, s.val()); });
-    on('ping', 'child_changed', function (s) { h.ping(s.key, s.val()); });
+    on('ping', function (s) { h.ping(s.key, s.val()); }, 'added');
+    on('ping', function (s) { h.ping(s.key, s.val()); }, 'changed');
   };
   FirebaseBus.prototype.setMember = function (info) {
+    const D = this.D;
     const r = this.ref('members/' + this.uid);
-    r.onDisconnect().remove();
-    this.ref('ping/' + this.uid).onDisconnect().remove();
-    this.ref('pong/' + this.uid).onDisconnect().remove();
-    return r.set(info);
+    D.onDisconnect(r).remove();
+    D.onDisconnect(this.ref('ping/' + this.uid)).remove();
+    D.onDisconnect(this.ref('pong/' + this.uid)).remove();
+    return D.set(r, info);
   };
-  FirebaseBus.prototype.updateMember = function (patch) { return this.ref('members/' + this.uid).update(patch); };
+  FirebaseBus.prototype.updateMember = function (patch) { return this.D.update(this.ref('members/' + this.uid), patch); };
   FirebaseBus.prototype.leaderPresence = function () {
     // 리더 연결이 끊기면 서버가 알아서 leaderOnline=false로 바꿔 둠 → 다른 기기가 이어받음
-    const m = this.ref('meta');
-    m.child('leaderOnline').onDisconnect().set(false);
-    return m.update({ leader: this.uid, leaderOnline: true });
+    this.D.onDisconnect(this.ref('meta/leaderOnline')).set(false);
+    return this.D.update(this.ref('meta'), { leader: this.uid, leaderOnline: true });
   };
-  FirebaseBus.prototype.setMeta = function (patch) { return this.ref('meta').update(patch); };
+  FirebaseBus.prototype.setMeta = function (patch) { return this.D.update(this.ref('meta'), patch); };
   FirebaseBus.prototype.claim = async function () {
     const uid = this.uid;
-    const r = await this.ref('meta').transaction(function (cur) {
+    const r = await this.D.runTransaction(this.ref('meta'), function (cur) {
       if (!cur) return undefined;
       if (cur.leaderOnline && cur.leader !== uid) return undefined;
       cur.leader = uid; cur.leaderOnline = true;
@@ -104,21 +111,22 @@
     });
     return r.committed;
   };
-  FirebaseBus.prototype.setState = function (st) { return this.ref('state').set(st); };
-  FirebaseBus.prototype.ping = function (msg) { return this.ref('ping/' + this.uid).set(msg); };
-  FirebaseBus.prototype.pong = function (to, msg) { return this.ref('pong/' + to).set(msg); };
+  FirebaseBus.prototype.setState = function (st) { return this.D.set(this.ref('state'), st); };
+  FirebaseBus.prototype.ping = function (msg) { return this.D.set(this.ref('ping/' + this.uid), msg); };
+  FirebaseBus.prototype.pong = function (to, msg) { return this.D.set(this.ref('pong/' + to), msg); };
   FirebaseBus.prototype.close = async function (removeRoom) {
-    (this.subs || []).forEach(function (x) { x[0].off(x[1], x[2]); });
+    (this.subs || []).forEach(function (un) { try { un(); } catch (e) { /* 무시 */ } });
     this.subs = [];
     if (!this.code) return;
+    const D = this.D;
     try {
-      this.ref('members/' + this.uid).onDisconnect().cancel();
-      this.ref('meta/leaderOnline').onDisconnect().cancel();
-      if (removeRoom) await this.ref().remove();
+      D.onDisconnect(this.ref('members/' + this.uid)).cancel();
+      D.onDisconnect(this.ref('meta/leaderOnline')).cancel();
+      if (removeRoom) await D.remove(this.ref());
       else {
-        await this.ref('members/' + this.uid).remove();
-        await this.ref('ping/' + this.uid).remove();
-        await this.ref('pong/' + this.uid).remove();
+        await D.remove(this.ref('members/' + this.uid));
+        await D.remove(this.ref('ping/' + this.uid));
+        await D.remove(this.ref('pong/' + this.uid));
       }
     } catch (e) { /* 이미 닫힘 */ }
     this.code = null;
