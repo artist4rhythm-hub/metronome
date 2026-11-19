@@ -100,8 +100,12 @@
       </div>
       <div class="pl-foot">
         <span class="pl-cap" id="pcCap"></span>
+        <span class="pc-btns">
+        <button type="button" class="pc-big pc-off" id="pcOff" aria-label="연습 모드 끄기">
+          <svg width="12" height="12" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5 L15 15 M15 5 L5 15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"></path></svg>끄기</button>
         <button type="button" class="pc-big" id="pcBig" aria-label="연습 화면 크게 보기">
           <svg width="14" height="14" viewBox="0 0 20 20" aria-hidden="true"><path d="M12 3 H17 V8 M8 17 H3 V12 M17 3 L11 9 M3 17 L9 11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>크게 보기</button>
+        </span>
       </div>
     </div>
 
@@ -109,8 +113,12 @@
     <div class="pfocus" id="pfocus" hidden>
       <div class="pf-top">
         <span class="pf-elapsed">연습한 시간 <b id="pfElapsed">0:00</b></span>
+        <span class="pc-btns">
+        <button type="button" class="pc-big pc-off" id="pfOff" aria-label="연습 모드 끄기">
+          <svg width="12" height="12" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5 L15 15 M15 5 L5 15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"></path></svg>끄기</button>
         <button type="button" class="pc-big" id="pfBack" aria-label="연습 화면 작게 보기">
           <svg width="14" height="14" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 8 H8 V3 M17 12 H12 V17 M8 8 L2 2 M12 12 L18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>작게 보기</button>
+        </span>
       </div>
       <div class="pf-bpm-wrap">
         <div class="pf-bpm" id="pfBpm">96</div>
@@ -361,9 +369,9 @@
 <!-- 연습 모드 · 타이머 -->
 <section class="sheet" id="sheetPractice" role="dialog" aria-modal="true" aria-labelledby="practiceTitle" hidden>
   <div class="grab" aria-hidden="true"></div>
-  <div class="sheet-head"><h2 id="practiceTitle">연습 모드</h2><button class="done" type="button" data-close>완료</button></div>
+  <div class="sheet-head"><h2 id="practiceTitle">연습 설정</h2><button class="done" type="button" data-close>완료</button></div>
 
-  <label class="switch line" for="prOn"><input type="checkbox" id="prOn"><span>빠르기 조금씩 올리기 <small>재생하는 동안 정한 시간마다 템포가 올라가요</small></span></label>
+  <label class="switch line big" for="prOn"><input type="checkbox" id="prOn" role="switch"><span>연습 모드 <b class="sw-state" id="prOnState">꺼짐</b> <small>켜면 재생하는 동안 정한 시간마다 빠르기가 조금씩 올라가요</small></span></label>
 
   <div class="pr-cards" id="prCards">
     <div class="pr-card">
@@ -511,7 +519,7 @@
   <label class="range" for="offset"><span><output id="offsetVal" for="offset">0ms</output></span><input type="range" id="offset" min="-100" max="300" step="10"></label>
   <p class="hint">블루투스 이어폰은 소리가 늦게 나옵니다. 깜빡임이 소리보다 빠르면 오른쪽으로 옮기세요.</p>
 
-  <p class="about-line">리듬 하우스 메트로놈 <span id="appVer">1.6.3</span> · <a href="privacy.html">개인정보처리방침</a></p>
+  <p class="about-line">리듬 하우스 메트로놈 <span id="appVer">1.6.4</span> · <a href="privacy.html">개인정보처리방침</a></p>
 </section>
 
 <!-- 빠르기 직접 입력 -->

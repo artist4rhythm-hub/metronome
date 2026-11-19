@@ -995,6 +995,8 @@
   function renderPracticeSheet() {
     const P = S.practice;
     $('prOn').checked = P.on;
+    $('prOnState').textContent = P.on ? '켜짐' : '꺼짐';
+    $('prOnState').classList.toggle('on', P.on);
     $('prCards').classList.toggle('off', !P.on);
     $('prEvery').textContent = P.every;
     $('prStep').textContent = '+' + P.step;
@@ -2307,6 +2309,18 @@
     return m >= 60 ? Math.floor(m / 60) + '시간 ' + (m % 60) + '분' : m + '분';
   }
   $('pcBig').addEventListener('click', function () { S.pracBig = true; renderPrac(); save(); });
+  // v1.6.4: 홈 화면에서 바로 연습 모드(+ 타이머) 끄기
+  function practiceOff() {
+    const hadTimer = S.timer > 0;
+    S.practice.on = false;
+    S.timer = 0;
+    S.pracBig = false;
+    practiceChanged();
+    renderPrac();
+    toast(hadTimer ? '연습 모드와 타이머를 껐어요' : '연습 모드를 껐어요');
+  }
+  $('pcOff').addEventListener('click', practiceOff);
+  $('pfOff').addEventListener('click', practiceOff);
   $('pfBack').addEventListener('click', function () { S.pracBig = false; renderPrac(); save(); });
 
   /* ---------- 박 흐름 보조 화면 (프로) ---------- */
