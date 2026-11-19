@@ -1139,3 +1139,63 @@ body.band-member .dial, body.band-member .adjust, body.band-member #chipMeter, b
 .prac.slim .pc-btns { flex-direction: column; gap: 4px; height: 100%; }
 .prac.slim .pc-big { font-size: 0; gap: 0; width: 40px; min-height: 0; flex: 1; padding: 0; border-radius: 12px; }
 .prac.slim .pc-big svg { width: 14px; height: 14px; }
+
+/* ---------- v1.7.0: 머리줄 기본 | 심플 전환 ---------- */
+.mode-seg { display: inline-flex; background: var(--chip); border-radius: 20px; padding: 3px; gap: 2px; }
+.mode-seg button {
+  border: none; background: none; font: inherit; font-size: 14px; font-weight: 700; color: var(--quiet);
+  min-height: 34px; padding: 0 13px; border-radius: 17px; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.mode-seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18); }
+.fit-tight .mode-seg button { font-size: 13px; padding: 0 10px; min-height: 32px; }
+
+/* ---------- v1.7.0: 심플 화면 (박 원) ---------- */
+.home.simple > *:not(.sring):not(.adjust):not(.play) { display: none !important; }
+.sring {
+  --sr: min(84vw, calc(300px * var(--fit, 1)));
+  position: relative; width: var(--sr); height: var(--sr); flex-shrink: 0;
+}
+.sring-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; overflow: visible; }
+.sring-svg .sr-seg { fill: none; stroke: var(--track); stroke-width: 10; stroke-linecap: round; transition: stroke 0.08s; }
+.sring-svg .sr-seg.done { stroke: var(--brand); opacity: 0.55; }
+.sring-svg .sr-seg.now { stroke: var(--brand); opacity: 1; }
+.sring-svg .sr-seg.now.first { stroke: var(--accent); }
+.sring-svg .sr-lab { font-family: var(--font-num); font-size: 17px; font-weight: 700; fill: var(--quiet); }
+.sring-svg .sr-lab.now { fill: var(--ink); }
+.sring-svg .sr-lab.now.first { fill: var(--accent); }
+.sring-glow { position: absolute; top: 7%; right: 7%; bottom: 7%; left: 7%; border-radius: 50%; background: var(--accent); opacity: 0.1; }
+.sring-center {
+  position: absolute; top: 14%; right: 14%; bottom: 14%; left: 14%; border-radius: 50%;
+  border: none; background: transparent; color: var(--ink); cursor: pointer; touch-action: none;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent;
+}
+.sring-num { font-family: var(--font-num); font-weight: 700; line-height: 0.92; letter-spacing: -0.04em; font-size: calc(var(--sr) * 0.4); font-variant-numeric: tabular-nums; transition: transform 0.12s ease-out, color 0.12s; }
+.sring-num.wide { font-size: calc(var(--sr) * 0.32); }
+.sring-unit { font-size: max(12px, calc(var(--sr) * 0.05)); color: var(--quiet); letter-spacing: 0.08em; margin-top: 6px; }
+.sring-pr { font-size: max(12px, calc(var(--sr) * 0.048)); font-weight: 700; color: var(--accent-ink); margin-top: 6px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sring-pr.done { color: var(--brand); }
+.sring.scrub .sring-num { transform: scale(1.06); color: var(--brand); }
+.sring.bump .sring-num { animation: bump 0.5s ease-out; }
+.home.simple .adjust { margin-top: 4px; }
+.home.simple .play { width: 92px; height: 92px; }
+.home.simple.tightish .play { width: 76px; height: 76px; }
+.fit-tight .home.simple .play { width: 68px; height: 68px; }
+
+/* ---------- v1.7.0: 설정 맨 위 버전 카드 · 업데이트 소식 ---------- */
+.about-card {
+  width: 100%; display: flex; align-items: center; gap: 12px; text-align: left; font: inherit; color: var(--ink);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; margin: 4px 0 6px; cursor: pointer;
+}
+.about-card .logo { flex-shrink: 0; }
+.ac-text { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
+.ac-name { font-size: 15px; font-weight: 700; }
+.ac-ver { font-size: 13px; color: var(--quiet); }
+.ac-ver b { color: var(--ink); font-family: var(--font-num); }
+.ac-link { font-size: 13px; font-weight: 700; color: var(--brand); white-space: nowrap; }
+.news-ver { margin: 14px 0 6px; display: flex; align-items: baseline; gap: 8px; }
+.news-ver b { font-family: var(--font-num); font-size: 18px; }
+.news-ver span { font-size: 12px; color: var(--quiet); }
+.news-ver .now { font-size: 11px; font-weight: 700; color: var(--brand-ink); background: var(--brand); border-radius: 8px; padding: 1px 7px; }
+.news-list { margin: 0 0 6px; padding-left: 20px; }
+.news-list li { margin: 4px 0; font-size: 14px; line-height: 1.5; }
+.news-more { width: 100%; margin-top: 10px; min-height: 44px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-weight: 700; cursor: pointer; }

@@ -21,7 +21,10 @@
       <span class="logo" aria-hidden="true">
         <svg width="20" height="20" viewBox="0 0 20 20"><path d="M10 2 L3.5 18 H16.5 Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><path d="M10 13 L14 5" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"></path></svg>
       </span>
-      <span class="brand-text"><span class="brand-sub">RHYTHM HOUSE</span><span class="brand-name">메트로놈</span></span>
+      <div class="mode-seg" role="group" aria-label="화면 구성">
+        <button type="button" data-ui="basic" aria-pressed="true">기본</button>
+        <button type="button" data-ui="simple" aria-pressed="false">심플</button>
+      </div>
     </div>
     <div class="top-actions">
       <button class="icon-btn pr-btn band-btn" id="btnBand" type="button" aria-label="합주 · 여러 기기 박 맞추기" aria-pressed="false">
@@ -130,6 +133,17 @@
         <div class="pt-bar pf-bar" id="pfBarWrap"><i id="pfBar"></i></div>
         <div class="pf-stage" id="pfStage"></div>
       </div>
+    </div>
+
+    <!-- v1.7.0: 심플 화면 — 박마다 차오르는 원 + 큰 숫자 -->
+    <div class="sring" id="sring" hidden>
+      <div class="sring-glow" id="sringGlow" aria-hidden="true"></div>
+      <svg class="sring-svg" id="sringSvg" viewBox="0 0 300 300" aria-hidden="true"></svg>
+      <button class="sring-center" id="sNumBtn" type="button" aria-label="빠르기 — 눌러서 직접 입력, 위아래나 좌우로 밀어서 1씩 조절">
+        <span class="sring-num" id="sNum">96</span>
+        <span class="sring-unit" id="sUnit">♩ = BPM</span>
+        <span class="sring-pr" id="sPr" hidden></span>
+      </button>
     </div>
 
     <div class="beats" id="beats" role="group" aria-label="박마다 세기. 누를 때마다 강, 보통, 약, 끄기로 바뀝니다"></div>
@@ -491,6 +505,12 @@
   <div class="grab" aria-hidden="true"></div>
   <div class="sheet-head"><h2 id="screenTitle">설정</h2><button class="done" type="button" data-close>완료</button></div>
 
+  <button type="button" class="about-card" id="aboutCard">
+    <span class="logo" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 20 20"><path d="M10 2 L3.5 18 H16.5 Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><path d="M10 13 L14 5" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"></path></svg></span>
+    <span class="ac-text"><span class="ac-name">리듬 하우스 메트로놈</span><span class="ac-ver">버전 <b id="aboutVer">1.7.0</b></span></span>
+    <span class="ac-link">업데이트 내역 ›</span>
+  </button>
+
   <h3>색상 테마</h3>
   <div class="skin-grid" id="skinGrid" role="radiogroup" aria-label="색상 테마"></div>
   <p class="hint" id="proNote">PRO 테마는 시범 기간 동안 모두 무료로 열어 두었어요.</p>
@@ -519,7 +539,14 @@
   <label class="range" for="offset"><span><output id="offsetVal" for="offset">0ms</output></span><input type="range" id="offset" min="-100" max="300" step="10"></label>
   <p class="hint">블루투스 이어폰은 소리가 늦게 나옵니다. 깜빡임이 소리보다 빠르면 오른쪽으로 옮기세요.</p>
 
-  <p class="about-line">리듬 하우스 메트로놈 <span id="appVer">1.6.4</span> · <a href="privacy.html">개인정보처리방침</a></p>
+  <p class="about-line">리듬 하우스 메트로놈 <span id="appVer">1.7.0</span> · <a href="privacy.html">개인정보처리방침</a></p>
+</section>
+
+<!-- v1.7.0: 업데이트 소식 · 내역 -->
+<section class="sheet" id="sheetNews" role="dialog" aria-modal="true" aria-labelledby="newsTitle" hidden>
+  <div class="grab" aria-hidden="true"></div>
+  <div class="sheet-head"><h2 id="newsTitle">업데이트 소식</h2><button class="done" type="button" data-close>확인</button></div>
+  <div id="newsBody"></div>
 </section>
 
 <!-- 빠르기 직접 입력 -->

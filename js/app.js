@@ -54,16 +54,18 @@
     patterns: {}, accentLink: true,
     skin: 'forest', appearance: 'auto',
     practice: { on: false, every: 5, unit: 'min', step: 5, target: 140 },
-    timer: 0, pracBig: false
+    timer: 0, pracBig: false, ui: 'basic'
   };
   const ROLES = ['accent', 'beat', 'sub', 'poly'];
 
   /* ---------- 저장 ---------- */
+  let HAD_SETTINGS = false; // 이 기기에서 전에 쓴 적이 있는지 (업데이트 소식용)
   function load() {
     let s = JSON.parse(JSON.stringify(DEFAULTS));
     try {
       const raw = localStorage.getItem(KEY);
       if (raw) {
+        HAD_SETTINGS = true;
         const v = JSON.parse(raw);
         s = Object.assign(s, v);
         s.poly = Object.assign({ on: false, n: 3 }, v.poly || {});
@@ -226,6 +228,9 @@
   function renderTempo() {
     $('bpmNum').textContent = S.bpm;
     $('bpmNum').classList.toggle('wide', S.bpm >= 100);
+    $('sNum').textContent = S.bpm;
+    $('sNum').classList.toggle('wide', S.bpm >= 100);
+    $('sUnit').textContent = (S.unit === 8 ? '♪' : '♩') + ' = BPM';
     const name = TEMPO_NAMES.find(function (t) { return S.bpm < t[0]; });
     const pl = pracShown() ? '' : practiceLine();
     $('tempoName').textContent = pl || (name[1] + ' · ' + name[2]);
@@ -414,6 +419,8 @@
     const box = $('beats');
     box.innerHTML = '';
     scheduleFit();
+    sringKey = '';
+    if (S.ui === 'simple') setTimeout(buildSring, 0); // 박자가 바뀌면 원의 칸 수도
     box.classList.toggle('many', S.beats > 8);
     const labels = countLabels();
     for (let i = 0; i < S.beats; i++) {
@@ -1630,7 +1637,7 @@
       renderBand();
     });
     // 따라가는 기기: 템포 · 박자 조작은 리더가 해요
-    const lockIds = ['dial', 'bpmBtn', 'minus', 'plus', 'tap', 'chipMeter', 'chipSub', 'beats'];
+    const lockIds = ['dial', 'bpmBtn', 'sNumBtn', 'minus', 'plus', 'tap', 'chipMeter', 'chipSub', 'beats'];
     ['pointerdown', 'click', 'keydown', 'wheel'].forEach(function (evName) {
       document.addEventListener(evName, function (e) {
         if (bandRole() !== 'member') return;
@@ -1703,9 +1710,9 @@
   $('tabSettings').addEventListener('click', function () { showSheet('sheetScreen'); });
   // v1.6.2: 숫자를 위아래 · 좌우로 밀면 1씩 섬세하게 (위 · 오른쪽 = 빠르게). 그냥 누르면 직접 입력
   const SCRUB_PX = 7;
-  let scrub = null, scrubClick = false;
-  (function bpmScrub() {
-    const btn = $('bpmBtn');
+  let scrubClick = false;
+  function makeScrub(btn, host) {
+    let scrub = null;
     const tick = function () { try { if (PLUG.Haptics && PLUG.Haptics.selectionChanged) PLUG.Haptics.selectionChanged(); } catch (e) { /* 무시 */ } };
     btn.addEventListener('pointerdown', function (e) {
       if (e.button > 0) return;
@@ -1718,7 +1725,7 @@
         if (dx * dx + dy * dy < 64) return; // 8px 넘게 움직여야 "밀기"
         scrub.on = true; scrub.x0 = e.clientX; scrub.y0 = e.clientY; scrub.base = S.bpm;
         try { btn.setPointerCapture(e.pointerId); } catch (err) { /* 무시 */ }
-        $('dial').classList.add('scrub');
+        host.classList.add('scrub');
         try { if (PLUG.Haptics && PLUG.Haptics.selectionStart) PLUG.Haptics.selectionStart(); } catch (err) { /* 무시 */ }
       }
       e.preventDefault();
@@ -1737,16 +1744,20 @@
       if (scrub && scrub.on) {
         scrubClick = true; // 밀기가 끝난 직후 따라오는 click은 무시
         setTimeout(function () { scrubClick = false; }, 400);
-        $('dial').classList.remove('scrub');
+        host.classList.remove('scrub');
         try { if (PLUG.Haptics && PLUG.Haptics.selectionEnd) PLUG.Haptics.selectionEnd(); } catch (err) { /* 무시 */ }
       }
       scrub = null;
     };
     ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (ev) { btn.addEventListener(ev, end); });
-  })();
-  $('bpmBtn').addEventListener('click', function (e) {
-    if (scrubClick) { scrubClick = false; e.preventDefault(); return; }
-    showSheet('sheetBpm');
+  }
+  makeScrub($('bpmBtn'), $('dial'));
+  makeScrub($('sNumBtn'), $('sring'));
+  ['bpmBtn', 'sNumBtn'].forEach(function (id) {
+    $(id).addEventListener('click', function (e) {
+      if (scrubClick) { scrubClick = false; e.preventDefault(); return; }
+      showSheet('sheetBpm');
+    });
   });
   document.querySelectorAll('.tab.soon').forEach(function (b) {
     b.addEventListener('click', function () { toast(b.dataset.soon); });
@@ -1943,6 +1954,8 @@
         d.classList.remove('bump'); void d.offsetWidth; d.classList.add('bump');
         const fb = $('pfBpm');
         fb.classList.remove('bump'); void fb.offsetWidth; fb.classList.add('bump');
+        const sr = $('sring');
+        sr.classList.remove('bump'); void sr.offsetWidth; sr.classList.add('bump');
       }
     }
     if (ev.barIndex != null) {
@@ -1953,6 +1966,7 @@
     const el = $('beats').children[ev.pulse];
     if (nowEl && nowEl !== el) nowEl.classList.remove('now');
     if (el) { el.classList.add('now'); nowEl = el; }
+    if (S.ui === 'simple') sringBeat(ev);
     flashAndVibrate(ev);
   }
   function flashAndVibrate(ev) {
@@ -2168,6 +2182,119 @@
   try { new ResizeObserver(scheduleFit).observe($('viewHome')); } catch (e) { /* 옛 기종: resize로 대신 */ }
   try { if (document.fonts && document.fonts.ready) document.fonts.ready.then(scheduleFit); } catch (e) { /* 무시 */ }
 
+  /* ---------- v1.7.0: 심플 화면 (박 원) ---------- */
+  let sringKey = '', sringNow = -1;
+  function sringCount() { return Math.max(1, $('beats').children.length || S.beats || 4); }
+  function buildSring() {
+    const n = sringCount();
+    const key = n + '';
+    if (key === sringKey) return;
+    sringKey = key;
+    const svg = $('sringSvg');
+    const NS = 'http://www.w3.org/2000/svg';
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    const R = 145, C = 150, gap = n > 1 ? Math.min(14, 120 / n) : 0; // 칸 사이 틈(도)
+    const pt = function (deg) { const a = (deg - 90) * Math.PI / 180; return [C + R * Math.cos(a), C + R * Math.sin(a)]; };
+    for (let i = 0; i < n; i++) {
+      // 1박 칸이 12시 방향 가운데 (시계처럼 1 · 2 · 3 · 4가 위 · 오른쪽 · 아래 · 왼쪽)
+      const a0 = (i - 0.5) * 360 / n + gap / 2, a1 = (i + 0.5) * 360 / n - gap / 2;
+      const p0 = pt(a0), p1 = pt(n === 1 ? a1 - 0.01 : a1);
+      const path = document.createElementNS(NS, 'path');
+      path.setAttribute('d', 'M ' + p0[0].toFixed(2) + ' ' + p0[1].toFixed(2) + ' A ' + R + ' ' + R + ' 0 ' + ((a1 - a0) > 180 ? 1 : 0) + ' 1 ' + p1[0].toFixed(2) + ' ' + p1[1].toFixed(2));
+      path.setAttribute('class', 'sr-seg' + (i === 0 ? ' first-seg' : ''));
+      svg.appendChild(path);
+      if (n <= 16) {
+        // 칸 가운데 안쪽에 박 번호
+        const mid = (a0 + a1) / 2, a = (mid - 90) * Math.PI / 180, rr = R - 26;
+        const t = document.createElementNS(NS, 'text');
+        t.setAttribute('x', (C + rr * Math.cos(a)).toFixed(1));
+        t.setAttribute('y', (C + rr * Math.sin(a) + 6).toFixed(1));
+        t.setAttribute('text-anchor', 'middle');
+        t.setAttribute('class', 'sr-lab');
+        t.textContent = String(i + 1);
+        svg.appendChild(t);
+      }
+    }
+    sringNow = -1;
+  }
+  function sringBeat(ev) {
+    const svg = $('sringSvg');
+    if (!svg.firstChild) return;
+    const segs = svg.querySelectorAll('.sr-seg'), labs = svg.querySelectorAll('.sr-lab');
+    const k = ev ? ev.pulse : -1;
+    for (let i = 0; i < segs.length; i++) {
+      const c = 'sr-seg' + (k >= 0 && i < k ? ' done' : '') + (i === k ? ' now' : '') + (i === k && k === 0 ? ' first' : '');
+      segs[i].setAttribute('class', c);
+      if (labs[i]) labs[i].setAttribute('class', 'sr-lab' + (i === k ? ' now' : '') + (i === k && k === 0 ? ' first' : ''));
+    }
+    sringNow = k;
+    if (ev && ev.level > 0) {
+      const g = $('sringGlow');
+      if (g.animate && !reduceMotion) g.animate([{ opacity: k === 0 ? 0.42 : 0.24 }, { opacity: 0.1 }], { duration: k === 0 ? 260 : 180, easing: 'ease-out' });
+    }
+  }
+  function renderUi() {
+    const simple = S.ui === 'simple';
+    const home = $('viewHome');
+    home.classList.toggle('simple', simple);
+    $('sring').hidden = !simple;
+    document.querySelectorAll('[data-ui]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.ui === S.ui)); });
+    // 심플에서는 합주 버튼을 숨김 (합주 중이면 그대로 보임)
+    let inBand = false;
+    try { inBand = !!bandRole(); } catch (e) { /* 아직 준비 전 */ }
+    $('btnBand').hidden = simple && !inBand;
+    if (simple) buildSring();
+    renderPrac();
+    scheduleFit();
+  }
+  document.querySelectorAll('[data-ui]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      if (S.ui === b.dataset.ui) return;
+      S.ui = b.dataset.ui;
+      renderUi();
+      save();
+      toast(S.ui === 'simple' ? '심플 화면' : '기본 화면');
+    });
+  });
+
+  /* ---------- v1.7.0: 버전 · 업데이트 소식 ---------- */
+  const APP_VERSION = '1.7.0';
+  const CHANGELOG = [
+    ['1.7.0', '2026-11-19', ['심플 화면이 생겼어요. 머리줄 왼쪽 "기본 | 심플"로 바꿔요. 박마다 큰 원이 차오르고, 숫자를 밀어서 빠르기를 바꿔요.',
+      '설정 맨 위에서 지금 버전과 업데이트 내역을 볼 수 있어요. 새 버전이 되면 이렇게 소식으로 알려 드려요.']],
+    ['1.6.4', '2026-11-19', ['연습 모드를 켜고 끄기 쉬워졌어요. 연습 설정 맨 위 스위치, 홈 화면 연습 계기판의 "끄기" 버튼.']],
+    ['1.6.3', '2026-11-19', ['새 버전이 나오면 한 번만 열어도 바로 바뀌어요.', '아이폰 SE · 6s 같은 작은 화면을 다시 정리했어요.']],
+    ['1.6.2', '2026-11-18', ['어떤 휴대폰 · 패드에서도 재생 버튼까지 한 화면에 꼭 맞아요.', '박 보기를 탭하면 모양이 바뀌어요.', '가운데 숫자를 위아래로 밀어서 1씩 조절해요.', '아이폰 6 같은 옛 기종에서도 쓸 수 있어요.']],
+    ['1.6.1', '2026-11-17', ['다이얼이 20과 400에서 멈춰요.', '연습 계기판과 크게 보기가 생겼어요.']],
+    ['1.6.0', '2026-11-11', ['아이폰 무음 스위치를 켜도 소리가 나요.', '개인정보처리방침을 넣었어요.']]
+  ];
+  const SEEN_KEY = 'rhm.seenVersion';
+  function newsHtml(list, currentFirst) {
+    return list.map(function (c, i) {
+      return '<div class="news-ver"><b>' + c[0] + '</b><span>' + c[1].replace(/-/g, '.') + '</span>' + (i === 0 && currentFirst ? '<span class="now">지금 버전</span>' : '') + '</div>' +
+        '<ul class="news-list">' + c[2].map(function (t) { return '<li>' + t + '</li>'; }).join('') + '</ul>';
+    }).join('');
+  }
+  function showNews(all) {
+    $('newsTitle').textContent = all ? '업데이트 내역' : APP_VERSION + ' 업데이트 소식';
+    $('newsBody').innerHTML = newsHtml(all ? CHANGELOG : CHANGELOG.slice(0, 1), true) +
+      (all ? '' : '<button type="button" class="news-more" id="newsAll">지난 업데이트도 보기</button>');
+    const more = $('newsAll');
+    if (more) more.addEventListener('click', function () { showNews(true); });
+    showSheet('sheetNews');
+  }
+  $('appVer').textContent = APP_VERSION;
+  $('aboutVer').textContent = APP_VERSION;
+  $('aboutCard').addEventListener('click', function () { closeSheet(); setTimeout(function () { showNews(true); }, 220); });
+  function checkNews() {
+    let seen = null;
+    const hadSettings = HAD_SETTINGS;
+    try { seen = localStorage.getItem(SEEN_KEY); } catch (e) { return; }
+    try { localStorage.setItem(SEEN_KEY, APP_VERSION); } catch (e) { /* 무시 */ }
+    // 처음 설치면 조용히, 쓰던 사람이 새 버전을 처음 열면 소식 한 번
+    if ((seen && seen !== APP_VERSION) || (!seen && hadSettings)) setTimeout(function () { if (!openSheet) showNews(false); }, 900);
+  }
+
   /* ---------- v1.6.1: 연습 계기판 · 크게 보기 ---------- */
   let pracStart = null, pracWasPlaying = false, pracLadderKey = '', pracLayoutKey = '';
   function mmssUp(sec) { // 흐른 시간은 내림 (0:59 다음에 1:00)
@@ -2203,7 +2330,7 @@
     const home = $('viewHome');
     if (!home) return;
     const show = pracShown();
-    const big = show && !!S.pracBig;
+    const big = show && !!S.pracBig && S.ui !== 'simple';
     const pkey = show + '|' + big + '|' + isViz();
     if (pkey !== pracLayoutKey) { pracLayoutKey = pkey; scheduleFit(); }
     home.classList.toggle('practicing', show);
@@ -2212,6 +2339,7 @@
     $('prac').classList.toggle('slim', show && isViz());
     home.classList.toggle('pr-slim', show && isViz());
     $('pfocus').hidden = !big;
+    $('sPr').hidden = !show;
     if (!show) return;
     const d = pracData(), P = d.P;
     const timerLeft = S.timer ? S.timer * 60 - d.elapsed : 0;
@@ -2261,6 +2389,10 @@
     $('pfBarWrap').hidden = done;
     $('pfBar').style.width = (frac * 100).toFixed(1) + '%';
     $('pfocus').querySelector('.pf-next').classList.toggle('done', done);
+    // 심플 화면: 원 안에 한 줄로
+    const plain = String(val).replace(/<small>/g, ' ').replace(/<[^>]+>/g, '');
+    $('sPr').textContent = !P.on ? '⏱ 남은 ' + plain : done ? '목표 ' + P.target + ' 도달!' : '▲ ' + Math.min(P.target, S.bpm + P.step) + '까지 ' + plain;
+    $('sPr').classList.toggle('done', done);
 
     // 계단: 시작 → 목표
     $('pcLadder').hidden = !(P.on && d.n);
@@ -2507,6 +2639,7 @@
 
 
   function clearBeat() {
+    sringBeat(null);
     if (nowEl) nowEl.classList.remove('now');
     nowEl = null;
     if (subEl) subEl.classList.remove('on');
@@ -2553,7 +2686,9 @@
   renderPracticeSheet();
   pushEngine();
   renderAll();
+  renderUi();
   renderPlay();
+  checkNews();
 
   // 다른 파일(songs.js)과 같이 쓰는 것들
   window.RH = Object.assign(window.RH || {}, {
@@ -2571,5 +2706,5 @@
   });
 
   // 시험용
-  window.__rh = { band: band, bandRole: bandRole, skins: SKINS, applyTheme: applyTheme, engine: engine, state: function () { return S; }, setMeter: setMeter, setBpm: setBpm, renderViewMode: function () { renderViewMode(); }, log: function () { return LOG; }, renderLog: function () { renderLog(); } };
+  window.__rh = { band: band, bandRole: bandRole, skins: SKINS, applyTheme: applyTheme, engine: engine, state: function () { return S; }, setMeter: setMeter, setBpm: setBpm, renderViewMode: function () { renderViewMode(); }, renderUi: function () { renderUi(); }, log: function () { return LOG; }, renderLog: function () { renderLog(); } };
 })();
