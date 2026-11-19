@@ -511,7 +511,7 @@
   <label class="range" for="offset"><span><output id="offsetVal" for="offset">0ms</output></span><input type="range" id="offset" min="-100" max="300" step="10"></label>
   <p class="hint">블루투스 이어폰은 소리가 늦게 나옵니다. 깜빡임이 소리보다 빠르면 오른쪽으로 옮기세요.</p>
 
-  <p class="about-line">리듬 하우스 메트로놈 <span id="appVer">1.6.2</span> · <a href="privacy.html">개인정보처리방침</a></p>
+  <p class="about-line">리듬 하우스 메트로놈 <span id="appVer">1.6.3</span> · <a href="privacy.html">개인정보처리방침</a></p>
 </section>
 
 <!-- 빠르기 직접 입력 -->
@@ -540,8 +540,25 @@
   // 앱(안드로이드 · 아이폰) 안에서는 파일이 이미 앱에 들어 있으므로 오프라인 저장(서비스 워커)을 쓰지 않음
   var rhNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
   if ('serviceWorker' in navigator && window.top === window.self && !rhNative) {
+    // v1.6.3: 새 버전을 올리면, 다음에 열 때 새 버전이 받아지는 즉시 한 번 새로 고침
+    // (예전에는 앱을 두 번 열어야 바뀌었음). 재생 중이면 멈출 때까지 기다렸다가 새로 고침
+    var rhHadSW = !!navigator.serviceWorker.controller, rhReloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', function () {
+      if (!rhHadSW || rhReloading) return;
+      var go = function () {
+        var busy = false;
+        try { busy = !!(window.__rh && window.__rh.engine && window.__rh.engine.playing); } catch (e) { /* 무시 */ }
+        if (busy) { setTimeout(go, 1500); return; }
+        rhReloading = true;
+        location.reload();
+      };
+      go();
+    });
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('sw.js').catch(function () {});
+      navigator.serviceWorker.register('sw.js').then(function (reg) {
+        // 앱을 오래 켜 둔 채(백그라운드) 다시 볼 때도 새 버전이 있는지 확인
+        document.addEventListener('visibilitychange', function () { if (!document.hidden) { try { reg.update(); } catch (e) { /* 무시 */ } } });
+      }).catch(function () {});
     });
   }
 </script>

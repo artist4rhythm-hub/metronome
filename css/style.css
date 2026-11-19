@@ -1107,3 +1107,6 @@ body.band-member .dial, body.band-member .adjust, body.band-member #chipMeter, b
 .vw-in { animation: vwIn 0.28s ease-out; }
 @keyframes vwIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .vw-in { animation: none; } .bpm-num { transition: none; } }
+.fit-tight .home.pr-slim .viz { height: max(40px, calc(110px * var(--fit, 1))); }
+.fit-tight .prac.slim .prac-tile { padding: 4px 10px 5px; }
+.fit-tight .prac.slim .pt-label { font-size: 11px; }

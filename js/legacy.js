@@ -147,6 +147,17 @@
         if (ccs.display === 'none' || ccs.position === 'absolute' || ccs.position === 'fixed') continue;
         kids.push(c);
       }
+      // 아이콘 + 글자(글자는 요소가 아님) 버튼: 아이콘 옆에만 간격
+      if (kids.length === 1 && !wrap && dir.indexOf('row') === 0 && cg) {
+        var only = kids[0], txt = (el.textContent || '').replace(/\s+/g, '');
+        if (txt && txt !== (only.textContent || '').replace(/\s+/g, '')) {
+          var firstIsIcon = el.firstElementChild === only && !(el.firstChild && el.firstChild.nodeType === 3 && el.firstChild.nodeValue.trim());
+          memo = [];
+          setM(only, firstIsIcon === (dir === 'row') ? 'marginRight' : 'marginLeft', cg, memo);
+          only.setAttribute('data-fg', memo.join(','));
+        }
+        continue;
+      }
       if (kids.length < 2) continue;
       var memo;
       if (!wrap) {
