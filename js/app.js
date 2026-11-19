@@ -2194,29 +2194,66 @@
     const home = $('viewHome');
     if (!home || home.hidden || !home.clientHeight) return;
     if (home.classList.contains('focus')) { home.style.setProperty('--fit', '1'); return; }
-    // 1차: 보통 크기의 버튼들로 맞춰 봄 → 많이 줄여야 하면(작은 휴대폰) 버튼 · 간격도 한 단계 작게 해서 다시
-    document.documentElement.classList.remove('fit-tight');
-    fitOnce(home);
-    if (parseFloat(home.style.getPropertyValue('--fit')) < 0.66) {
-      document.documentElement.classList.add('fit-tight');
-      fitOnce(home);
+    const root = document.documentElement;
+    root.classList.remove('fit-tight');
+    home.classList.remove('no-view');
+    home.style.removeProperty('--vfit');
+    // 1) 다이얼 · 박 보기를 같이 늘이고 줄여 봄
+    let f = fitVar(home, '--fit', FIT_MIN, FIT_MAX);
+    // 2) 많이 줄여야 하면(작은 폰): 다이얼은 0.72배로 지키고, 박 보기만 더 줄여 봄
+    const DIAL_KEEP = 0.62;
+    if (f < DIAL_KEEP && hasView(home)) {
+      home.style.setProperty('--fit', String(DIAL_KEEP));
+      const v = fitVar(home, '--vfit', 0.45, DIAL_KEEP); // 박 보기는 0.45배보다 작아지면 어색해서 접음
+      if (homeNeed(home) > home.clientHeight) {
+        // 3) 그래도 모자라면 박 보기를 잠시 접고(박 점은 그대로) 다이얼만 맞춤
+        home.style.removeProperty('--vfit');
+        home.classList.add('no-view');
+        f = fitVar(home, '--fit', FIT_MIN, FIT_MAX);
+      } else f = v < DIAL_KEEP ? DIAL_KEEP : f;
     }
+    // 4) 그래도 많이 작으면 간격 · 버튼을 한 단계 작게 (누르는 곳은 38px 이상 유지)
+    if (parseFloat(home.style.getPropertyValue('--fit')) < 0.66) {
+      root.classList.add('fit-tight');
+      if (home.style.getPropertyValue('--vfit')) fitVar(home, '--vfit', 0.45, DIAL_KEEP);
+      else fitVar(home, '--fit', FIT_MIN, FIT_MAX);
+    }
+    home.classList.toggle('scroll', homeNeed(home) > home.clientHeight + 1);
+    svgMins();
   }
-  function fitOnce(home) {
+  function hasView(home) {
+    return ['pendulum', 'score', 'viz'].some(function (id) { const e = $(id); return e && !e.hidden && getComputedStyle(e).display !== 'none'; });
+  }
+  // 이진 탐색: CSS 변수 name을 lo~hi 사이에서 가장 크게 (다 들어가는 한도 안에서)
+  function fitVar(home, name, lo, hi) {
     const avail = home.clientHeight;
-    const setF = function (f) { home.style.setProperty('--fit', f.toFixed(3)); };
+    const setF = function (f) { home.style.setProperty(name, f.toFixed(3)); };
     home.classList.remove('scroll');
-    setF(FIT_MAX);
-    if (homeNeed(home) <= avail) { home.classList.remove('tight'); return; }
-    let lo = FIT_MIN, hi = FIT_MAX;
+    setF(hi);
+    if (homeNeed(home) <= avail) return hi;
     for (let i = 0; i < 9; i++) {
       const mid = (lo + hi) / 2;
       setF(mid);
       if (homeNeed(home) <= avail) lo = mid; else hi = mid;
     }
     setF(lo);
-    // 가장 작게 해도 모자라면(가로로 눕힌 휴대폰 등) 홈 화면만 위아래로 밀어 볼 수 있게
-    home.classList.toggle('scroll', homeNeed(home) > avail + 1);
+    return lo;
+  }
+  // 그림(SVG) 안의 글자 · 손잡이는 그림이 작아지면 같이 작아져서, 화면에서 최소 크기를 지키게 보정
+  function svgMins() {
+    const dw = $('dial').getBoundingClientRect().width;
+    if (dw > 0) {
+      const k = 300 / dw; // 그림 1단위 → 화면 px의 역수
+      const ends = document.querySelectorAll('.dial-end');
+      const showEnds = dw >= 170;
+      ends.forEach(function (t) { t.style.display = showEnds ? '' : 'none'; t.style.fontSize = Math.max(15, 12 * k).toFixed(1) + 'px'; });
+      $('dialKnob').setAttribute('r', Math.min(22, Math.max(15, 11 * k)).toFixed(1));
+    }
+    const sw = $('sring').getBoundingClientRect().width;
+    if (sw > 0) {
+      const k2 = 300 / sw;
+      document.querySelectorAll('.sr-lab').forEach(function (t) { t.style.fontSize = Math.max(17, 13 * k2).toFixed(1) + 'px'; });
+    }
   }
   function scheduleFit() {
     if (fitRaf) return;
@@ -2262,6 +2299,7 @@
       }
     }
     sringNow = -1;
+    svgMins();
   }
   function sringBeat(ev) {
     const svg = $('sringSvg');
@@ -2304,8 +2342,10 @@
   });
 
   /* ---------- v1.7.0: 버전 · 업데이트 소식 ---------- */
-  const APP_VERSION = '1.7.1';
+  const APP_VERSION = '1.7.2';
   const CHANGELOG = [
+    ['1.7.2', '2026-11-19', ['작은 폰(아이폰 SE · 6s · 작은 갤럭시)에서 아이콘 · 버튼 · 글자가 너무 작아지지 않게 했어요.',
+      '화면이 좁으면 움직이는 그림을 먼저 줄이거나 접고, 다이얼과 버튼은 손가락으로 누르기 좋은 크기를 지켜요.']],
     ['1.7.1', '2026-11-19', ['합주 모드를 아이폰에서 고쳤어요. 리더 소리가 안 나거나, 참가한 기기의 박이 뒤죽박죽이던 문제예요.',
       '참가한 기기의 소리가 잠겨 있으면 "화면을 한 번 눌러 주세요"라고 알려 주고, 누르면 바로 따라 울려요.']],
     ['1.7.0', '2026-11-19', ['심플 화면이 생겼어요. 머리줄 왼쪽 "기본 | 심플"로 바꿔요. 박마다 큰 원이 차오르고, 숫자를 밀어서 빠르기를 바꿔요.',
