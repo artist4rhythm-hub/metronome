@@ -1240,3 +1240,94 @@ body.band-member .dial, body.band-member .adjust, body.band-member #chipMeter, b
 .m-tag { font-size: 11px; }
 /* 밀대(소리 크기 · 음높이 · 지연 보정): 손가락으로 잡기 쉽게 누르는 높이 36px */
 .range input, .tune-row input[type="range"], .vol-box input[type="range"] { min-height: 36px; }
+
+/* ---------- v1.8.0: 원탭 합주 참가 ---------- */
+#bandHome, #bandPad, #bandScan { display: flex; flex-direction: column; gap: 12px; }
+#bandHome[hidden], #bandPad[hidden], #bandScan[hidden] { display: none; }
+#bandHome .or { margin: 6px 0 0; }
+.bj-rooms { display: flex; flex-direction: column; gap: 8px; }
+.bj-rooms:empty { display: none; }
+.bj-card { border: 2px solid var(--brand); border-radius: 20px; padding: 14px; display: flex; flex-direction: column; gap: 12px; background: var(--surface); background: color-mix(in srgb, var(--brand) 6%, var(--surface)); }
+.bj-card-t { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.bj-av { width: 46px; height: 46px; flex: none; border-radius: 14px; background: var(--brand); color: var(--brand-ink); display: flex; align-items: center; justify-content: center; }
+.bj-card-x { min-width: 0; }
+.bj-card-n { font-size: 18px; font-weight: 800; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bj-card-s { font-size: 14px; color: var(--quiet); margin-top: 2px; }
+.bj-live { display: inline-block; width: 8px; height: 8px; border-radius: 4px; background: #1FB35A; margin-right: 6px; vertical-align: 1px; box-shadow: 0 0 0 3px rgba(31, 179, 90, 0.18); }
+.bj-go { min-height: 54px; border: none; border-radius: 27px; background: var(--brand); color: var(--brand-ink); font: inherit; font-size: 18px; font-weight: 800; cursor: pointer; }
+.bj-go:disabled { opacity: 0.6; }
+.bj-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 56px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.bj-row-x { display: flex; flex-direction: column; min-width: 0; }
+.bj-row-x b { font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bj-row-x small { font-size: 12px; color: var(--quiet); }
+.bj-row-go { flex: none; font-size: 15px; font-weight: 800; color: var(--brand); }
+.bj-two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.no-flex-gap .bj-two > * + * { margin-left: 0; }
+.bj-opt { min-height: 84px; border-radius: 18px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 8px; cursor: pointer; }
+.bj-opt span { font-size: 16px; font-weight: 800; }
+.bj-opt small { font-size: 12px; color: var(--quiet); }
+.bj-opt svg { width: 28px; height: 28px; }
+.bj-net { margin: 0; font-size: 13px; color: var(--quiet); text-align: center; line-height: 1.5; }
+.bj-net[hidden], .bj-net:empty { display: none; }
+.bj-net.lead { text-align: left; margin-top: 10px; }
+.bj-ghost { min-height: 52px; border-radius: 26px; border: 1.5px solid var(--ink); background: var(--surface); color: var(--ink); font: inherit; font-size: 17px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; }
+.bj-ghost:disabled { opacity: 0.5; }
+.bj-me { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--chip); border-radius: 14px; padding: 4px 6px 4px 14px; font-size: 15px; color: var(--quiet); min-height: 48px; }
+.bj-me[hidden] { display: none; }
+.bj-me b { color: var(--ink); }
+.bj-me .link-btn { margin: 0; text-decoration: none; padding: 0 10px; flex: none; white-space: nowrap; }
+.bj-me-t { min-width: 0; line-height: 1.4; }
+.bj-me.unnamed { background: var(--surface); border: 1.5px dashed var(--line); }
+.bj-me-form { display: flex; gap: 8px; }
+.bj-me-form[hidden] { display: none; }
+.bj-me-form input { flex: 1; min-width: 0; min-height: 48px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: 16px; padding: 0 12px; }
+.bj-more { font-size: 14px; color: var(--quiet); }
+.bj-more summary { min-height: 40px; display: flex; align-items: center; cursor: pointer; list-style: none; }
+.bj-more summary::-webkit-details-marker { display: none; }
+.bj-more summary::before { content: "›"; display: inline-block; margin-right: 8px; transition: transform .15s; font-size: 18px; }
+.bj-more[open] summary::before { transform: rotate(90deg); }
+/* 키패드 */
+.bj-back { align-self: flex-start; min-height: 40px; padding: 0 4px; border: none; background: none; color: var(--brand); font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; }
+.bj-cap { margin: 0; text-align: center; font-size: 15px; color: var(--quiet); }
+.bj-cap b { color: var(--ink); }
+.bj-digits { display: flex; justify-content: center; gap: 12px; }
+.bj-digits i { font-style: normal; width: max(52px, min(64px, 16vw)); height: max(60px, min(76px, 9vh)); border-radius: 16px; border: 2px solid var(--line); background: var(--surface); display: flex; align-items: center; justify-content: center; font-family: var(--font-num); font-weight: 700; font-size: 40px; color: var(--ink); }
+.bj-digits i.cur { border-color: var(--brand); box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.06); }
+.bj-digits.bad { animation: bjShake .38s ease; }
+.bj-digits.bad i { border-color: #D9443B; }
+@keyframes bjShake { 20% { transform: translateX(-8px); } 40% { transform: translateX(7px); } 60% { transform: translateX(-5px); } 80% { transform: translateX(3px); } }
+.bj-hint { margin: 0; text-align: center; font-size: 14px; color: var(--quiet); min-height: 20px; }
+.bj-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.bj-pad button { height: max(48px, min(60px, 7.4vh)); border: none; border-radius: 16px; background: var(--chip); color: var(--ink); font-family: var(--font-num); font-size: 28px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; touch-action: manipulation; }
+.bj-pad button:active { background: var(--line); }
+.bj-pad button.ic { background: none; color: var(--quiet); font-family: inherit; font-size: 13px; flex-direction: column; gap: 2px; }
+.bj-pad button.ic svg { width: 24px; height: 24px; }
+/* QR 찍기 */
+.bj-cam { position: relative; height: max(240px, min(320px, 42vh)); border-radius: 22px; background: #141716; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.bj-cam video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
+.bj-cam .box { position: relative; width: 180px; height: 180px; }
+.bj-cam .box i { position: absolute; width: 40px; height: 40px; border: 5px solid #FFFFFF; }
+.bj-cam .box i:nth-child(1) { top: 0; left: 0; border-right: 0; border-bottom: 0; border-radius: 14px 0 0 0; }
+.bj-cam .box i:nth-child(2) { top: 0; right: 0; border-left: 0; border-bottom: 0; border-radius: 0 14px 0 0; }
+.bj-cam .box i:nth-child(3) { bottom: 0; left: 0; border-right: 0; border-top: 0; border-radius: 0 0 0 14px; }
+.bj-cam .box i:nth-child(4) { bottom: 0; right: 0; border-left: 0; border-top: 0; border-radius: 0 0 14px 0; }
+.bj-cam .lab { position: absolute; bottom: 14px; left: 12px; right: 12px; text-align: center; color: #FFFFFF; font-size: 15px; text-shadow: 0 1px 3px rgba(0,0,0,.6); }
+/* 리더 화면 */
+.bl-card { gap: 16px; }
+.bl-card .room-code { font-size: 50px; letter-spacing: 0.06em; line-height: 1.05; color: var(--ink); }
+.bl-card .mini-label { margin: 0; }
+.bl-sub { font-size: 13px; color: var(--quiet); line-height: 1.4; }
+.bl-share { display: flex; gap: 10px; margin-top: 12px; }
+.bl-share button { flex: 1; min-height: 52px; border-radius: 26px; font: inherit; font-size: 16px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; padding: 0 10px; }
+.bl-talk { background: #FEE500; color: #191600; border: none; }
+.bl-copy { background: var(--surface); color: var(--ink); border: 1.5px solid var(--line); }
+.bl-share svg { flex: none; }
+@media (max-width: 360px) {
+  .bj-card-n { font-size: 16px; }
+  .bj-opt { min-height: 76px; }
+  .bl-card .room-code { font-size: 42px; }
+  .bl-card .qr { width: 104px; height: 104px; }
+  .bl-share button { font-size: 15px; }
+  .bj-digits { gap: 8px; }
+}
+.switch[hidden] { display: none; }

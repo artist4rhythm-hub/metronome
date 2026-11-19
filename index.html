@@ -338,27 +338,65 @@
   <div class="sheet-head"><h2 id="bandTitle">합주</h2><button class="done" type="button" data-close>완료</button></div>
 
   <div id="bandIdle">
-    <p class="band-lead">한 기기가 리더가 되어 템포를 정하면, 같은 방의 모든 기기가 같은 순간에 박을 쳐요. 템포 · 박자 · 분할을 바꾸면 다음 마디부터 다 같이 바뀌어요.</p>
-    <label class="field" for="bandName"><span class="field-label">내 이름 (다른 기기에 보여요)</span><input type="text" id="bandName" maxlength="12" autocomplete="nickname"></label>
-    <button class="btn-primary band-create" id="bandCreate" type="button">합주 방 만들기 <span class="pro-tag">PRO</span></button>
-    <div class="or" aria-hidden="true"><span>또는 코드로 참가</span></div>
-    <div class="join-row">
-      <input type="text" id="bandCode" maxlength="7" placeholder="ABC123" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="방 코드 6자리">
-      <button class="btn-secondary" id="bandJoin" type="button">참가</button>
+    <!-- v1.8.0 원탭 참가: 최근 방 · 같은 Wi-Fi 방은 누르면 바로, 처음이면 숫자 4자리 -->
+    <div id="bandHome">
+      <div class="bj-rooms" id="bandRooms"></div>
+      <div class="bj-two">
+        <button type="button" class="bj-opt" id="bandPadOpen"><svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="6" cy="5" r="1.8"/><circle cx="12" cy="5" r="1.8"/><circle cx="18" cy="5" r="1.8"/><circle cx="6" cy="11" r="1.8"/><circle cx="12" cy="11" r="1.8"/><circle cx="18" cy="11" r="1.8"/><circle cx="6" cy="17" r="1.8"/><circle cx="12" cy="17" r="1.8"/><circle cx="18" cy="17" r="1.8"/></svg><span>번호로 참가</span><small>숫자 4자리</small></button>
+        <button type="button" class="bj-opt" id="bandScanOpen"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 17h4v4h-4"/></svg><span>QR 찍기</span><small>리더 화면 비추기</small></button>
+      </div>
+      <p class="bj-net" id="bandNet" aria-live="polite"></p>
+      <div class="or" aria-hidden="true"><span>내가 리더라면</span></div>
+      <button class="bj-ghost band-create" id="bandCreate" type="button">합주 방 만들기 <span class="pro-tag">PRO</span></button>
+      <div class="bj-me" id="bandMe">
+        <span class="bj-me-t" id="bandMeText">내 이름 <b id="bandMeName"></b></span>
+        <button type="button" class="link-btn" id="bandMeEdit">바꾸기</button>
+      </div>
+      <div class="bj-me-form" id="bandMeForm" hidden>
+        <input type="text" id="bandName" maxlength="12" autocomplete="nickname" placeholder="예: 민지 · 기타" aria-label="내 이름 (다른 기기에 보여요)">
+        <button type="button" class="btn-secondary" id="bandMeOk">확인</button>
+      </div>
+      <details class="bj-more">
+        <summary>합주 모드는 어떻게 맞추나요?</summary>
+        <p class="hint">한 기기가 리더가 되어 템포를 정하면, 같은 방의 모든 기기가 같은 순간에 박을 쳐요. 템포 · 박자 · 분할을 바꾸면 다음 마디부터 다 같이 바뀌어요. 참가는 누구나 무료예요.</p>
+        <p class="hint band-mode" id="bandMode"></p>
+      </details>
     </div>
-    <p class="hint">리더 화면의 QR을 휴대폰 카메라로 찍어도 바로 참가해요. 참가는 누구나 무료예요.</p>
-    <p class="hint band-mode" id="bandMode"></p>
+
+    <div id="bandPad" hidden>
+      <button type="button" class="bj-back" id="bandPadBack">‹ 돌아가기</button>
+      <p class="bj-cap">리더 화면의 <b>방 번호 4자리</b></p>
+      <div class="bj-digits" id="bandDigits" role="status" aria-label="넣은 번호"><i></i><i></i><i></i><i></i></div>
+      <p class="bj-hint" id="bandPadHint">4자리를 다 누르면 바로 들어가요</p>
+      <div class="bj-pad" id="bandKeys"><button type="button" data-k="1">1</button><button type="button" data-k="2">2</button><button type="button" data-k="3">3</button><button type="button" data-k="4">4</button><button type="button" data-k="5">5</button><button type="button" data-k="6">6</button><button type="button" data-k="7">7</button><button type="button" data-k="8">8</button><button type="button" data-k="9">9</button><button type="button" class="ic" id="bandPadQr" aria-label="QR 찍기"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 17h4v4h-4"/></svg><span>QR 찍기</span></button><button type="button" data-k="0">0</button><button type="button" class="ic" id="bandPadDel" aria-label="지우기"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 5H9l-6 7 6 7h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1z"/><path d="m16 10-4 4m0-4 4 4"/></svg></button></div>
+    </div>
+
+    <div id="bandScan" hidden>
+      <div class="bj-cam">
+        <video id="bandVideo" playsinline muted autoplay></video>
+        <div class="box" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+        <div class="lab" id="bandScanLab">리더 화면의 QR을 네모 안에 비추세요</div>
+      </div>
+      <p class="bj-hint">카톡으로 받은 초대 링크를 눌러도 바로 들어가요</p>
+      <button class="bj-ghost" id="bandScanBack" type="button">취소</button>
+    </div>
   </div>
 
   <div id="bandLeader" hidden>
-    <div class="qr-card">
+    <div class="qr-card bl-card">
       <div class="qr" id="bandQr" role="img" aria-label="참가용 QR 코드"></div>
       <div class="qr-side">
-        <span class="mini-label">방 코드</span>
-        <b class="room-code" id="bandCodeBig">------</b>
-        <button class="link-btn" id="bandCopy" type="button">참가 링크 복사</button>
+        <span class="mini-label">방 번호</span>
+        <b class="room-code" id="bandCodeBig">----</b>
+        <span class="bl-sub">참가하는 기기는 이 번호만 누르면 돼요</span>
       </div>
     </div>
+    <div class="bl-share">
+      <button type="button" class="bl-talk" id="bandShare"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3C6.5 3 2 6.6 2 11c0 2.8 1.9 5.3 4.7 6.7L5.8 21l4-2.6c.7.1 1.4.2 2.2.2 5.5 0 10-3.6 10-8S17.5 3 12 3z"/></svg><span>카톡으로 초대</span></button>
+      <button type="button" class="bl-copy" id="bandCopy"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg><span>링크 복사</span></button>
+    </div>
+    <p class="bj-net lead" id="bandLobbyState"></p>
+    <label class="switch line" for="bandFixed"><input type="checkbox" id="bandFixed"><span>다음에도 이 번호로 열기 <small>매번 같은 번호 → 참가하는 기기는 "바로 들어가기" 한 번</small></span></label>
     <p class="hint">시작 · 멈춤, 템포, 박자, 분할, 리듬 패턴, 곡 지도를 이 기기에서 바꾸면 다음 마디부터 모두 함께 바뀌어요. 소리 · 테마 · 박 보기는 기기마다 따로예요.</p>
   </div>
 
@@ -507,7 +545,7 @@
 
   <button type="button" class="about-card" id="aboutCard">
     <span class="logo" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 20 20"><path d="M10 2 L3.5 18 H16.5 Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><path d="M10 13 L14 5" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"></path></svg></span>
-    <span class="ac-text"><span class="ac-name">리듬 하우스 메트로놈</span><span class="ac-ver">버전 <b id="aboutVer">1.7.2</b></span></span>
+    <span class="ac-text"><span class="ac-name">리듬 하우스 메트로놈</span><span class="ac-ver">버전 <b id="aboutVer">1.8.0</b></span></span>
     <span class="ac-link">업데이트 내역 ›</span>
   </button>
 
@@ -539,7 +577,7 @@
   <label class="range" for="offset"><span><output id="offsetVal" for="offset">0ms</output></span><input type="range" id="offset" min="-100" max="300" step="10"></label>
   <p class="hint">블루투스 이어폰은 소리가 늦게 나옵니다. 깜빡임이 소리보다 빠르면 오른쪽으로 옮기세요.</p>
 
-  <p class="about-line">리듬 하우스 메트로놈 <span id="appVer">1.7.2</span> · <a href="privacy.html">개인정보처리방침</a></p>
+  <p class="about-line">리듬 하우스 메트로놈 <span id="appVer">1.8.0</span> · <a href="privacy.html">개인정보처리방침</a></p>
 </section>
 
 <!-- v1.7.0: 업데이트 소식 · 내역 -->

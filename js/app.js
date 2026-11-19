@@ -1268,7 +1268,7 @@
     const sy = window.RHSync.create();
     band.sync = sy;
     sy.on('role', function (role) {
-      if (role === 'leader') band.pubKey = JSON.stringify(bandSettings());
+      if (role === 'leader') { band.pubKey = JSON.stringify(bandSettings()); announceRoom(); }
       document.body.classList.toggle('band-member', role === 'member');
       renderBand();
     });
@@ -1585,14 +1585,19 @@
     $('bandLeader').hidden = role !== 'leader';
     $('bandMember').hidden = role !== 'member';
     $('bandRoom').hidden = !role;
-    $('bandName').value = S.bandName;
     $('bandMode').textContent = bandModeText();
     $('bandLat').value = S.bandLat || 0;
     $('bandLatVal').textContent = (S.bandLat > 0 ? '+' : '') + (S.bandLat || 0) + 'ms';
     $('bandFollow').checked = band.follow;
-    if (!role) return;
+    if (!role) { startBandWatch(); renderBandHome(); return; }
+    stopBandWatch();
+    if (role === 'member' && sy.meta && sy.meta.title) rememberRoom(sy.code, sy.meta.title, true);
     if (role === 'leader') {
       if ($('bandCodeBig').textContent !== sy.code) { $('bandCodeBig').textContent = sy.code; renderQr(sy.code); }
+      $('bandFixed').checked = !!S.bandFixed && S.bandFixedCode === sy.code;
+      $('bandFixed').closest('label').hidden = !/^[0-9]{4}$/.test(sy.code); // 예전 규칙일 때(6자리 코드)는 숨김
+      $('bandLobbyState').textContent = bj.lobbyState === 'on' ? '같은 Wi-Fi의 기기에는 이 방이 목록에 바로 떠요'
+        : bj.lobbyState === 'off' ? '지금은 같은 Wi-Fi 목록에 올리지 못했어요 · 번호나 QR로 참가해 주세요' : '';
     }
     renderBandStatus();
     const ul = $('bandMembers');
@@ -1613,13 +1618,285 @@
     });
   }
 
-  function buildBand() {
-    $('btnBand').addEventListener('click', function () { bandSync(); showSheet('sheetBand'); renderBand(); });
-    $('bandName').addEventListener('change', function (e) {
-      S.bandName = (e.target.value || '').trim().slice(0, 12) || S.bandName;
-      e.target.value = S.bandName;
-      save();
+  /* ---------- v1.8.0: 원탭 참가 ----------
+     - 최근에 들어갔던 방이 지금 열려 있으면 큰 카드 → "바로 들어가기" 한 번
+     - 같은 Wi-Fi(같은 인터넷 주소)에서 열린 방도 목록에 바로 뜸
+     - 처음이면 숫자 4자리 키패드(4번째 숫자에서 바로 들어감) 또는 QR 찍기 */
+  const bj = { view: 'home', lobby: null, metas: {}, invite: '', unLobby: null, unRooms: [], watching: false, digits: '', busy: false, lobbyState: '', stream: null, scanT: 0 };
+  if (!Array.isArray(S.bandRecent)) S.bandRecent = [];
+  const DEFAULT_NAME = /^기기-[A-Z0-9]{4}$/;
+  function bjHaptic(style) { try { if (PLUG.Haptics) PLUG.Haptics.impact({ style: style }); } catch (e) { /* 무시 */ } }
+  function rememberRoom(code, title, onlyTitle) {
+    if (!/^[0-9]{4}$/.test(code || '')) return;
+    const list = S.bandRecent.slice();
+    const i = list.findIndex(function (r) { return r.code === code; });
+    if (onlyTitle) { if (i < 0 || list[i].title === title) return; list[i].title = String(title).slice(0, 24); }
+    else { const old = i >= 0 ? list.splice(i, 1)[0] : {}; list.unshift({ code: code, title: String(title || old.title || '').slice(0, 24), at: Date.now() }); }
+    S.bandRecent = list.slice(0, 3);
+    save();
+  }
+  function startBandWatch() {
+    if (bj.watching || inBand() || $('sheetBand').hidden) return;
+    bj.watching = true; bj.lobby = null; bj.metas = {};
+    const sy = bandSync();
+    sy.watchLobby(function (list) { bj.lobby = list === null ? false : list; renderBandHome(); })
+      .then(function (un) { if (bj.watching) bj.unLobby = un; else un(); }, function () { bj.lobby = false; renderBandHome(); });
+    const codes = S.bandRecent.map(function (r) { return r.code; });
+    if (bj.invite && codes.indexOf(bj.invite) < 0) codes.unshift(bj.invite);
+    codes.forEach(function (c) {
+      sy.watchRoom(c, function (m) { bj.metas[c] = m || null; renderBandHome(); })
+        .then(function (un) { if (bj.watching) bj.unRooms.push(un); else un(); }, function () { /* 무시 */ });
     });
+  }
+  function stopBandWatch() {
+    if (!bj.watching) return;
+    bj.watching = false;
+    try { if (bj.unLobby) bj.unLobby(); } catch (e) { /* 무시 */ }
+    bj.unRooms.forEach(function (u) { try { u(); } catch (e) { /* 무시 */ } });
+    bj.unLobby = null; bj.unRooms = [];
+  }
+  function bandCandidates() {
+    const out = [], seen = {};
+    const add = function (code, title, src) { if (seen[code]) return; seen[code] = 1; out.push({ code: code, title: title || '', src: src }); };
+    if (bj.invite) { const m = bj.metas[bj.invite]; add(bj.invite, (m && m.title) || '', 'invite'); }
+    S.bandRecent.forEach(function (r) { const m = bj.metas[r.code]; if (m && m.leaderOnline) add(r.code, m.title || r.title, 'recent'); });
+    (bj.lobby || []).forEach(function (r) { add(r.code, r.title, 'net'); });
+    return out;
+  }
+  const SRC_TEXT = { invite: '초대받은 방이에요', recent: '지난번에 들어간 방 · 지금 열려 있어요', net: '같은 Wi-Fi에서 열려 있어요' };
+  function roomName(c) { return (c.title ? c.title + ' · ' : '방 ') + c.code; }
+  function renderBandHome() {
+    if ($('sheetBand').hidden || inBand()) return;
+    $('bandHome').hidden = bj.view !== 'home';
+    $('bandPad').hidden = bj.view !== 'pad';
+    $('bandScan').hidden = bj.view !== 'scan';
+    // 이름
+    const named = !DEFAULT_NAME.test(S.bandName);
+    $('bandMeText').innerHTML = '';
+    if (named) { $('bandMeText').appendChild(document.createTextNode('내 이름 ')); const b = document.createElement('b'); b.id = 'bandMeName'; b.textContent = S.bandName; $('bandMeText').appendChild(b); }
+    else $('bandMeText').textContent = '내 이름을 정해 두면 리더 화면에 보여요';
+    $('bandMeEdit').textContent = named ? '바꾸기' : '정하기';
+    $('bandMe').classList.toggle('unnamed', !named);
+    // 방 목록
+    const box = $('bandRooms');
+    const cands = bandCandidates();
+    const key = JSON.stringify(cands) + bj.busy;
+    if (box.getAttribute('data-k') !== key) {
+      box.setAttribute('data-k', key);
+      box.innerHTML = '';
+      cands.slice(0, 5).forEach(function (c, i) {
+        if (i === 0) {
+          const card = document.createElement('div'); card.className = 'bj-card'; card.setAttribute('data-src', c.src);
+          const top = document.createElement('div'); top.className = 'bj-card-t';
+          top.innerHTML = '<span class="bj-av" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="3.2"/><circle cx="16.5" cy="9" r="2.6"/><path d="M2.5 19c.6-3.2 2.9-5 5.5-5s4.9 1.8 5.5 5M14 14.3c2.9-.6 6.4.6 7.4 4.7"/></svg></span>';
+          const tx = document.createElement('div'); tx.className = 'bj-card-x';
+          const nm = document.createElement('div'); nm.className = 'bj-card-n'; nm.textContent = roomName(c);
+          const sb = document.createElement('div'); sb.className = 'bj-card-s';
+          if (c.src !== 'invite') { const d = document.createElement('span'); d.className = 'bj-live'; sb.appendChild(d); }
+          sb.appendChild(document.createTextNode(SRC_TEXT[c.src]));
+          tx.appendChild(nm); tx.appendChild(sb); top.appendChild(tx); card.appendChild(top);
+          const go = document.createElement('button'); go.type = 'button'; go.className = 'bj-go'; go.setAttribute('data-join', c.code);
+          go.textContent = bj.busy ? '들어가는 중…' : '바로 들어가기'; go.disabled = bj.busy;
+          card.appendChild(go);
+          box.appendChild(card);
+        } else {
+          const row = document.createElement('button'); row.type = 'button'; row.className = 'bj-row'; row.setAttribute('data-join', c.code); row.disabled = bj.busy;
+          const t = document.createElement('span'); t.className = 'bj-row-x';
+          const n = document.createElement('b'); n.textContent = roomName(c);
+          const s2 = document.createElement('small'); s2.textContent = SRC_TEXT[c.src];
+          t.appendChild(n); t.appendChild(s2);
+          const g = document.createElement('span'); g.className = 'bj-row-go'; g.textContent = '들어가기';
+          row.appendChild(t); row.appendChild(g);
+          box.appendChild(row);
+        }
+      });
+    }
+    let net = '';
+    if (!cands.length) {
+      if (bj.lobby === null) net = '같은 Wi-Fi에서 열린 방을 찾는 중…';
+      else if (bj.lobby === false) net = '';
+      else net = '같은 Wi-Fi에서 열린 방이 아직 없어요 · 리더가 방을 열면 여기에 바로 떠요';
+    }
+    $('bandNet').textContent = net;
+    $('bandNet').hidden = !net;
+    // 키패드
+    const ds = $('bandDigits').children;
+    for (let i = 0; i < 4; i++) { ds[i].textContent = bj.digits[i] || ''; ds[i].classList.toggle('cur', i === bj.digits.length && !bj.busy); }
+    $('bandDigits').setAttribute('aria-label', '넣은 번호 ' + (bj.digits || '없음'));
+  }
+  function setBandView(v) {
+    if (bj.view === 'scan' && v !== 'scan') stopScan();
+    bj.view = v;
+    if (v === 'pad') { bj.digits = ''; $('bandPadHint').textContent = '4자리를 다 누르면 바로 들어가요'; $('bandDigits').classList.remove('bad'); }
+    renderBandHome();
+  }
+  async function joinCode(code, from) {
+    if (bj.busy || inBand()) return false;
+    bj.busy = true; renderBandHome();
+    let ok = false;
+    try {
+      if (engine.playing) { engine.stop(); renderPlay(); }
+      await ensureAudio(); // 누른 순간 소리를 깨워 둠 (아이폰)
+      saveBackup();
+      const c = await bandSync().join(code, S.bandName);
+      const cand = bandCandidates().find(function (x) { return x.code === c; });
+      rememberRoom(c, (band.sync.meta && band.sync.meta.title) || (cand && cand.title) || '');
+      bj.invite = ''; bj.view = 'home';
+      toast('합주에 참가했어요 · 리더가 시작하면 같이 울려요');
+      ok = true;
+    } catch (e) {
+      restoreBackup();
+      const none = e && e.message === 'no-room';
+      if (from !== 'pad') toast(none ? '그 번호의 합주 방이 없어요' : '참가할 수 없어요 · 인터넷 연결을 확인해 주세요');
+      if (from === 'pad') {
+        $('bandPadHint').textContent = none ? '그 번호의 방이 없어요 · 다시 눌러 주세요' : '연결이 안 돼요 · 인터넷을 확인해 주세요';
+        const d = $('bandDigits'); d.classList.remove('bad'); void d.offsetWidth; d.classList.add('bad');
+        bj.digits = '';
+      }
+    }
+    bj.busy = false;
+    renderBand();
+    return ok;
+  }
+  function padKey(k) {
+    if (bj.busy || bj.view !== 'pad') return;
+    if (k === 'del') bj.digits = bj.digits.slice(0, -1);
+    else if (/^[0-9]$/.test(k) && bj.digits.length < 4) bj.digits += k;
+    if (k !== 'del') $('bandDigits').classList.remove('bad');
+    renderBandHome();
+    if (bj.digits.length === 4) { $('bandPadHint').textContent = '들어가는 중…'; joinCode(bj.digits, 'pad'); }
+  }
+
+  /* QR 찍기: 카메라 → (BarcodeDetector가 있으면 그것, 없으면 jsQR) → #join=번호 */
+  function codeFromText(t) {
+    t = String(t || '').trim();
+    const m = /#join=([A-Za-z0-9]{4}|[A-Za-z0-9]{6})\b/.exec(t) || /^([0-9]{4})$/.exec(t);
+    return m ? window.RHSync.normCode(m[1]) : '';
+  }
+  function loadJsQR() {
+    if (window.jsQR) return Promise.resolve(window.jsQR);
+    return new Promise(function (resolve, reject) {
+      const s = document.createElement('script');
+      s.src = 'js/vendor/jsQR.js';
+      s.onload = function () { window.jsQR ? resolve(window.jsQR) : reject(new Error('jsqr')); };
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+  function stopScan() {
+    clearTimeout(bj.scanT); bj.scanT = 0;
+    if (bj.stream) { bj.stream.getTracks().forEach(function (t) { try { t.stop(); } catch (e) { /* 무시 */ } }); bj.stream = null; }
+    const v = $('bandVideo'); try { v.pause(); } catch (e) { /* 무시 */ } v.srcObject = null;
+  }
+  async function startScan() {
+    setBandView('scan');
+    $('bandScanLab').textContent = '카메라를 켜는 중…';
+    const fail = function (why) {
+      stopScan();
+      toast(why || '카메라를 쓸 수 없어요 · 휴대폰 카메라 앱으로 QR을 찍어도 바로 들어가요');
+      if (bj.view === 'scan') setBandView('home');
+    };
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { fail(); return; }
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false }); }
+    catch (e) { fail(e && e.name === 'NotAllowedError' ? '카메라 권한이 꺼져 있어요 · 휴대폰 설정에서 켜거나, 번호로 참가해 주세요' : null); return; }
+    if (bj.view !== 'scan') { stream.getTracks().forEach(function (t) { t.stop(); }); return; }
+    bj.stream = stream;
+    const v = $('bandVideo');
+    v.srcObject = stream;
+    try { await v.play(); } catch (e) { /* autoplay 속성으로 재생됨 */ }
+    $('bandScanLab').textContent = '리더 화면의 QR을 네모 안에 비추세요';
+    let det = null, jsqr = null;
+    try { if ('BarcodeDetector' in window) det = new window.BarcodeDetector({ formats: ['qr_code'] }); } catch (e) { det = null; }
+    if (!det) { try { jsqr = await loadJsQR(); } catch (e) { fail('QR 읽기 도구를 불러오지 못했어요 · 번호로 참가해 주세요'); return; } }
+    const cv = document.createElement('canvas'), cx = cv.getContext('2d', { willReadFrequently: true });
+    let warned = false;
+    const tick = async function () {
+      if (!bj.stream || bj.view !== 'scan') return;
+      let text = '';
+      try {
+        if (v.readyState >= 2 && v.videoWidth) {
+          if (det) { const r = await det.detect(v); if (r && r[0]) text = r[0].rawValue; }
+          else {
+            const k = Math.min(1, 640 / Math.max(v.videoWidth, v.videoHeight));
+            cv.width = Math.round(v.videoWidth * k); cv.height = Math.round(v.videoHeight * k);
+            cx.drawImage(v, 0, 0, cv.width, cv.height);
+            const img = cx.getImageData(0, 0, cv.width, cv.height);
+            const r = jsqr(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
+            if (r) text = r.data;
+          }
+        }
+      } catch (e) { /* 다음 장면에서 다시 */ }
+      if (text) {
+        const code = codeFromText(text);
+        if (code) { stopScan(); bjHaptic('MEDIUM'); joinCode(code, 'scan'); return; }
+        if (!warned) { warned = true; toast('리듬 하우스 합주 QR이 아니에요'); }
+      }
+      bj.scanT = setTimeout(tick, 160);
+    };
+    tick();
+  }
+
+  /* 리더: 같은 Wi-Fi 목록에 올리기 · 초대 보내기 */
+  function announceRoom() {
+    const sy = band.sync;
+    if (!sy || bandRole() !== 'leader') return;
+    bj.lobbyState = '';
+    sy.announce(S.bandName).then(function (ok) { bj.lobbyState = ok ? 'on' : 'off'; renderBand(); }, function () { bj.lobbyState = 'off'; renderBand(); });
+  }
+  function copyText(text, okMsg) {
+    const fallback = function () { toast(text); };
+    try { navigator.clipboard.writeText(text).then(function () { toast(okMsg); }, fallback); } catch (e) { fallback(); }
+  }
+  async function shareInvite() {
+    const code = band.sync && band.sync.code; if (!code) return;
+    const url = joinUrl(code);
+    const text = '리듬 하우스 메트로놈 합주에 초대해요 · 방 번호 ' + code;
+    const cancelled = function (e) { return e && (e.name === 'AbortError' || /cancel/i.test(String(e.message || e))); };
+    if (NATIVE && PLUG.Share) {
+      try { await PLUG.Share.share({ title: '합주 초대', text: text, url: url, dialogTitle: '합주 초대 보내기' }); return; } catch (e) { if (cancelled(e)) return; }
+    } else if (navigator.share) {
+      try { await navigator.share({ title: '합주 초대', text: text, url: url }); return; } catch (e) { if (cancelled(e)) return; }
+    }
+    copyText(text + '\n' + url, '초대 글을 복사했어요 · 카톡에 붙여 넣으세요');
+  }
+
+  function buildBand() {
+    $('btnBand').addEventListener('click', function () { bandSync(); bj.view = 'home'; showSheet('sheetBand'); renderBand(); });
+    // 이름
+    const openName = function () { $('bandMe').hidden = true; $('bandMeForm').hidden = false; $('bandName').value = DEFAULT_NAME.test(S.bandName) ? '' : S.bandName; $('bandName').focus(); };
+    const saveName = function () {
+      const v = ($('bandName').value || '').trim().slice(0, 12);
+      if (v) { S.bandName = v; save(); }
+      $('bandMe').hidden = false; $('bandMeForm').hidden = true;
+      renderBandHome();
+    };
+    $('bandMeEdit').addEventListener('click', openName);
+    $('bandMeOk').addEventListener('click', saveName);
+    $('bandName').addEventListener('keydown', function (e) { if (e.key === 'Enter') saveName(); });
+    // 방 목록 · 원탭
+    $('bandRooms').addEventListener('click', function (e) {
+      const b = e.target.closest && e.target.closest('[data-join]');
+      if (b) joinCode(b.getAttribute('data-join'), 'card');
+    });
+    // 키패드
+    $('bandPadOpen').addEventListener('click', function () { setBandView('pad'); });
+    $('bandPadBack').addEventListener('click', function () { setBandView('home'); });
+    $('bandKeys').addEventListener('click', function (e) {
+      const b = e.target.closest && e.target.closest('button'); if (!b) return;
+      if (b.id === 'bandPadQr') { startScan(); return; }
+      if (b.id === 'bandPadDel') { padKey('del'); return; }
+      const k = b.getAttribute('data-k'); if (k) { bjHaptic('LIGHT'); padKey(k); }
+    });
+    document.addEventListener('keydown', function (e) {
+      if (bj.view !== 'pad' || $('sheetBand').hidden || inBand()) return;
+      if (/^[0-9]$/.test(e.key)) { padKey(e.key); e.preventDefault(); }
+      else if (e.key === 'Backspace') { padKey('del'); e.preventDefault(); }
+    });
+    // QR
+    $('bandScanOpen').addEventListener('click', startScan);
+    $('bandScanBack').addEventListener('click', function () { setBandView('home'); });
+    // 리더
     $('bandCreate').addEventListener('click', async function () {
       if (!PRO_OPEN) { toast('합주 방 만들기는 프로 기능이에요'); return; }
       const btn = this;
@@ -1627,9 +1904,14 @@
       try {
         if (engine.playing) { engine.stop(); renderPlay(); }
         await ensureAudio();
-        await bandSync().create(S.bandName);
+        const want = S.bandFixed && /^[0-9]{4}$/.test(S.bandFixedCode || '') ? S.bandFixedCode : '';
+        const code = await bandSync().create(S.bandName, { want: want, title: S.bandName });
         band.sync.publish({ running: false, settings: bandSettings(), segs: [], program: null });
-        toast('합주 방을 만들었어요 · QR을 찍으면 참가해요');
+        if (S.bandFixed && /^[0-9]{4}$/.test(code)) {
+          if (want && code !== want) toast(want + '번은 다른 방이 쓰고 있어서 ' + code + '번으로 열었어요');
+          else toast(code + '번 방을 열었어요 · 지난번과 같은 번호예요');
+          S.bandFixedCode = code; save();
+        } else toast(code + '번 방을 열었어요 · 번호나 QR로 참가해요');
       } catch (e) {
         console.error(e);
         toast('방을 만들 수 없어요 · 인터넷 연결과 Firebase 설정을 확인해 주세요');
@@ -1637,30 +1919,12 @@
       btn.disabled = false;
       renderBand();
     });
-    const doJoin = async function () {
-      const code = ($('bandCode').value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-      if (code.length !== 6) { toast('방 코드 6자리를 넣어 주세요'); $('bandCode').focus(); return; }
-      $('bandJoin').disabled = true;
-      try {
-        if (engine.playing) { engine.stop(); renderPlay(); }
-        await ensureAudio(); // 참가 버튼을 누른 순간 소리를 깨워 둠
-        saveBackup();
-        await bandSync().join(code, S.bandName);
-        toast('합주에 참가했어요 · 리더가 시작하면 같이 울려요');
-      } catch (e) {
-        restoreBackup();
-        toast(e && e.message === 'no-room' ? '그 코드의 합주 방이 없어요' : '참가할 수 없어요 · 인터넷 연결을 확인해 주세요');
-      }
-      $('bandJoin').disabled = false;
-      renderBand();
-    };
-    $('bandJoin').addEventListener('click', doJoin);
-    $('bandCode').addEventListener('keydown', function (e) { if (e.key === 'Enter') doJoin(); });
-    $('bandCode').addEventListener('input', function (e) { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); });
-    $('bandCopy').addEventListener('click', function () {
-      const url = joinUrl(band.sync.code);
-      const fallback = function () { toast('링크: ' + url); };
-      try { navigator.clipboard.writeText(url).then(function () { toast('참가 링크를 복사했어요'); }, fallback); } catch (e) { fallback(); }
+    $('bandShare').addEventListener('click', shareInvite);
+    $('bandCopy').addEventListener('click', function () { copyText(joinUrl(band.sync.code), '참가 링크를 복사했어요'); });
+    $('bandFixed').addEventListener('change', function (e) {
+      S.bandFixed = e.target.checked;
+      if (S.bandFixed && band.sync && band.sync.code) { S.bandFixedCode = band.sync.code; toast('다음에도 ' + band.sync.code + '번으로 열어요'); }
+      save();
     });
     $('bandFollow').addEventListener('change', function (e) {
       band.follow = e.target.checked;
@@ -1675,8 +1939,10 @@
     $('bandLeave').addEventListener('click', async function () {
       const wasLeader = bandRole() === 'leader';
       if (engine.playing && engine.follow) { engine.stop(); releaseWake(); }
+      bj.lobbyState = '';
       await band.sync.leave();
-      toast(wasLeader ? '합주를 나왔어요' + (Object.keys(band.sync.members || {}).length ? '' : '') : '합주에서 나왔어요');
+      toast(wasLeader ? '합주를 나왔어요' : '합주에서 나왔어요');
+      bj.view = 'home';
       renderPlay();
       renderBand();
     });
@@ -1693,19 +1959,21 @@
         if (evName === 'click' || evName === 'keydown') toast('합주 중에는 리더가 템포 · 박자를 정해요');
       }, true);
     });
-    // QR로 들어온 경우: #join=코드 (처음 열 때와, 이미 열린 앱에서 주소만 바뀔 때)
+    // 초대 링크 · QR로 들어온 경우: #join=번호 → 그 방이 큰 카드로 떠서 "바로 들어가기" 한 번
+    // (누르는 순간 소리를 깨워야 아이폰에서 바로 울려서, 저절로 들어가지는 않음)
     const checkJoin = function () {
-      const m = /^#join=([A-Za-z0-9]{6})$/.exec(location.hash || '');
+      const m = /^#join=([A-Za-z0-9]{4}|[A-Za-z0-9]{6})$/.exec(location.hash || '');
       if (!m) return;
       try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* 무시 */ }
       setTimeout(function () {
         bandSync();
         if (bandRole()) { toast('이미 합주 중이에요'); return; }
+        stopBandWatch();
+        bj.invite = window.RHSync.normCode(m[1]);
+        bj.view = 'home';
         showSheet('sheetBand');
         renderBand();
-        $('bandCode').value = m[1].toUpperCase();
-        toast('"참가"를 누르면 합주에 들어가요');
-        $('bandJoin').focus();
+        toast('"바로 들어가기"를 누르면 합주에 들어가요');
       }, 300);
     };
     checkJoin();
@@ -1733,6 +2001,7 @@
   }
   function closeSheet(silent) {
     if (!openSheet) return;
+    if (openSheet.id === 'sheetBand') { stopScan(); stopBandWatch(); bj.view = 'home'; }
     openSheet.classList.remove('open');
     openSheet.hidden = true;
     $('backdrop').hidden = true;
@@ -2342,8 +2611,11 @@
   });
 
   /* ---------- v1.7.0: 버전 · 업데이트 소식 ---------- */
-  const APP_VERSION = '1.7.2';
+  const APP_VERSION = '1.8.0';
   const CHANGELOG = [
+    ['1.8.0', '2026-11-19', ['합주 참가가 쉬워졌어요. 같은 Wi-Fi에서 열린 방과 지난번에 들어간 방이 바로 떠서 "바로 들어가기" 한 번이면 돼요.',
+      '방 번호가 숫자 4자리가 됐어요. 4번째 숫자를 누르면 바로 들어가요. 앱 안에서 QR도 찍을 수 있어요.',
+      '리더는 "카톡으로 초대"로 링크를 보내고, "다음에도 이 번호로 열기"로 매번 같은 번호를 쓸 수 있어요.']],
     ['1.7.2', '2026-11-19', ['작은 폰(아이폰 SE · 6s · 작은 갤럭시)에서 아이콘 · 버튼 · 글자가 너무 작아지지 않게 했어요.',
       '화면이 좁으면 움직이는 그림을 먼저 줄이거나 접고, 다이얼과 버튼은 손가락으로 누르기 좋은 크기를 지켜요.']],
     ['1.7.1', '2026-11-19', ['합주 모드를 아이폰에서 고쳤어요. 리더 소리가 안 나거나, 참가한 기기의 박이 뒤죽박죽이던 문제예요.',

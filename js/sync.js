@@ -21,7 +21,65 @@
     ? performance.timeOrigin : Date.now() - performance.now();
   const localNow = function () { return ORIGIN + performance.now() + SKEW; };
   const uid0 = function () { let s = ''; for (let i = 0; i < 20; i++) s += ALPHA[Math.floor(Math.random() * ALPHA.length)]; return s; };
-  const makeCode = function () { let s = ''; for (let i = 0; i < 6; i++) s += ALPHA[Math.floor(Math.random() * ALPHA.length)]; return s; };
+  // v1.8.0: 방 번호는 숫자 4자리 (1000~9999) — 키패드로 4번만 누르면 들어감. 예전 6자리 영문 코드 링크도 계속 받음
+  const makeCode = function () { return String(1000 + Math.floor(Math.random() * 9000)); };
+  const makeLegacyCode = function () { let s = ''; for (let i = 0; i < 6; i++) s += ALPHA[Math.floor(Math.random() * ALPHA.length)]; return s; };
+  const normCode = function (c) {
+    c = String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    return /^[0-9]{4}$/.test(c) || /^[A-Z0-9]{6}$/.test(c) ? c : '';
+  };
+  const STALE = 12 * 3600 * 1000; // 리더가 떠난 지 12시간 지난 방 번호는 다른 리더가 다시 쓸 수 있음
+
+  /* ---------- 같은 Wi-Fi 찾기 ----------
+     휴대폰 브라우저 · 앱은 주변 기기를 직접 찾을 수 없어서, "밖에서 보이는 인터넷 주소(IP)"가 같은 기기끼리 묶음.
+     같은 Wi-Fi에 붙은 기기들은 공유기 하나를 거쳐 나가서 이 주소가 같음.
+     주소 그대로는 저장하지 않고, 되돌릴 수 없는 짧은 값(해시)으로 바꿔서 그 값 아래에만 방 번호를 적어 둠. */
+  const NET_OVERRIDE = params.get('net'); // 시험용
+  const hash64 = function (str, seed) {
+    let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed;
+    for (let i = 0; i < str.length; i++) {
+      const ch = str.charCodeAt(i);
+      h1 = Math.imul(h1 ^ ch, 2654435761); h2 = Math.imul(h2 ^ ch, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    return (h2 >>> 0).toString(16).padStart(8, '0') + (h1 >>> 0).toString(16).padStart(8, '0');
+  };
+  const netId = function (ip) { const k = 'rhm-net-v1|' + ip; return 'n' + hash64(k, 7) + hash64(k, 1931).slice(0, 7); };
+  const fetchText = function (url, ms) {
+    return new Promise(function (resolve) {
+      let done = false;
+      const t = setTimeout(function () { if (!done) { done = true; resolve(''); } }, ms);
+      try {
+        fetch(url, { cache: 'no-store', credentials: 'omit' }).then(function (r) { return r.ok ? r.text() : ''; })
+          .then(function (x) { if (!done) { done = true; clearTimeout(t); resolve(String(x || '').trim()); } }, function () { if (!done) { done = true; clearTimeout(t); resolve(''); } });
+      } catch (e) { done = true; clearTimeout(t); resolve(''); }
+    });
+  };
+  let netCache = null, netAt = 0, netBusy = null;
+  async function netKeys() {
+    if (NET_OVERRIDE) return [netId('test|' + NET_OVERRIDE)];
+    if (netCache && Date.now() - netAt < 60000) return netCache;
+    if (netBusy) return netBusy;
+    netBusy = (async function () {
+      const v4p = fetchText('https://api.ipify.org', 3000).then(function (x) { return x || fetchText('https://ipv4.icanhazip.com', 3000); });
+      const v6p = fetchText('https://api6.ipify.org', 3000);
+      const res = await Promise.all([v4p, v6p]);
+      const keys = [];
+      if (/^\d{1,3}(\.\d{1,3}){3}$/.test(res[0])) keys.push(netId(res[0]));
+      // IPv6는 기기마다 끝자리가 달라서, 같은 공유기 구간(앞 4묶음 = /64)으로 묶음
+      if (/^[0-9a-f:]+$/i.test(res[1]) && res[1].indexOf(':') > 0) {
+        let parts = res[1].toLowerCase().split('::');
+        const head = parts[0] ? parts[0].split(':') : [];
+        const tail = parts.length > 1 && parts[1] ? parts[1].split(':') : [];
+        const full = head.concat(new Array(Math.max(0, 8 - head.length - tail.length)).fill('0'), tail);
+        keys.push(netId(full.slice(0, 4).map(function (x) { return parseInt(x || '0', 16).toString(16); }).join(':') + '::/64'));
+      }
+      netCache = keys; netAt = Date.now(); netBusy = null;
+      return keys;
+    })();
+    return netBusy;
+  }
 
   /* ---------- 연결 1: Firebase 실시간 데이터베이스 ----------
      모듈 방식 SDK(js/vendor/fb)를 씀. 로그인은 팝업 · 리다이렉트용 숨은 창을 띄우지 않는 방식으로 초기화해서
@@ -64,8 +122,92 @@
   FirebaseBus.prototype.ref = function (p) { return this.D.ref(this.db, 'rooms/' + this.code + (p ? '/' + p : '')); };
   FirebaseBus.prototype.create = async function (code, meta) {
     this.code = code;
-    const r = await this.D.runTransaction(this.ref('meta'), function (cur) { return cur ? undefined : meta; });
+    const uid = this.uid;
+    let reused = false, stale = false;
+    // 빈 번호 · 내가 리더인 번호 · 내가 처음 연 번호(지금 리더가 없을 때) · 12시간 넘게 비어 있던 번호면 씀
+    const r = await this.D.runTransaction(this.ref('meta'), function (cur) {
+      if (!cur) { reused = false; return meta; }
+      const old = Date.now() - (cur.created || 0) > STALE;
+      const mine = cur.leader === uid || (cur.owner === uid && !cur.leaderOnline);
+      if (mine || (!cur.leaderOnline && old)) { reused = true; stale = !mine; return meta; }
+      return undefined;
+    });
     if (!r.committed) throw new Error('code-taken');
+    if (reused) {
+      // 남아 있던 기록 정리 (내 방이었으면 지금 들어와 있는 기기는 그대로 둠)
+      const D = this.D;
+      try {
+        const snap = await D.get(this.ref());
+        const v = snap.val() || {};
+        const jobs = [];
+        if (stale) Object.keys(v.members || {}).forEach((u) => { if (u !== uid) jobs.push(D.remove(this.ref('members/' + u))); });
+        Object.keys(v.ping || {}).forEach((u) => { if (stale || !(v.members || {})[u]) jobs.push(D.remove(this.ref('ping/' + u))); });
+        Object.keys(v.pong || {}).forEach((u) => { if (stale || !(v.members || {})[u]) jobs.push(D.remove(this.ref('pong/' + u))); });
+        if (v.state) jobs.push(D.remove(this.ref('state')));
+        await Promise.all(jobs);
+      } catch (e) { /* 정리 실패는 무시 */ }
+    }
+  };
+  // 서버 보안 규칙이 1.8.0용으로 바뀌었는지 (4자리 방 읽기가 되는지). 예전 규칙이면 예전 6자리 코드로 방을 만듦
+  FirebaseBus.prototype.rulesOk = async function () {
+    if (this._rulesOk) return true;
+    try { await this.D.get(this.D.ref(this.db, 'rooms/0000/meta')); this._rulesOk = true; return true; }
+    catch (e) { return false; }
+  };
+  FirebaseBus.prototype.memberCount = async function (code) {
+    try { const s = await this.D.get(this.D.ref(this.db, 'rooms/' + code + '/members')); return Object.keys(s.val() || {}).length; } catch (e) { return 0; }
+  };
+  FirebaseBus.prototype.peek = async function (code) {
+    try { const s = await this.D.get(this.D.ref(this.db, 'rooms/' + code + '/meta')); return s.val(); } catch (e) { return null; }
+  };
+  // 방 상태를 계속 지켜봄 (최근 방 카드: 리더가 방을 열면 바로 보이게)
+  FirebaseBus.prototype.watchMeta = function (code, fn) {
+    return this.D.onValue(this.D.ref(this.db, 'rooms/' + code + '/meta'), function (s) { fn(s.val()); }, function () { fn(null); });
+  };
+  /* 같은 Wi-Fi 방 목록 */
+  FirebaseBus.prototype.announce = async function (keys, info) {
+    const D = this.D, code = this.code;
+    this.lobbyRefs = (this.lobbyRefs || []);
+    for (let i = 0; i < keys.length; i++) {
+      const r = D.ref(this.db, 'lobby/' + keys[i] + '/' + code);
+      try {
+        D.onDisconnect(r).remove();
+        await D.set(r, { leader: this.uid, title: info.title, ts: D.serverTimestamp() });
+        if (this.lobbyRefs.indexOf(r.toString()) < 0) this.lobbyRefs.push(r.toString());
+        this.lobbyKeys = keys;
+      } catch (e) { /* 규칙 거절 등 — 목록에만 안 뜸 */ }
+    }
+    // 잠깐 끊겼다 다시 붙으면(onDisconnect로 지워졌으니) 다시 올림
+    if (!this._connUn) {
+      const self = this; let first = true;
+      this._connUn = D.onValue(D.ref(this.db, '.info/connected'), function (s) {
+        if (first) { first = false; return; }
+        if (s.val() === true && self.code && self.lobbyKeys && self._lobbyInfo) self.announce(self.lobbyKeys, self._lobbyInfo);
+      });
+    }
+    this._lobbyInfo = info;
+  };
+  FirebaseBus.prototype.unannounce = async function () {
+    const D = this.D, code = this.code;
+    const keys = this.lobbyKeys || [];
+    this.lobbyKeys = null; this._lobbyInfo = null;
+    if (this._connUn) { try { this._connUn(); } catch (e) { /* 무시 */ } this._connUn = null; }
+    for (let i = 0; i < keys.length; i++) {
+      const r = D.ref(this.db, 'lobby/' + keys[i] + '/' + code);
+      try { D.onDisconnect(r).cancel(); await D.remove(r); } catch (e) { /* 무시 */ }
+    }
+  };
+  FirebaseBus.prototype.watchLobby = function (keys, fn) {
+    const D = this.D, db = this.db, lists = {};
+    const uns = keys.map(function (k) {
+      return D.onValue(D.ref(db, 'lobby/' + k), function (s) {
+        lists[k] = s.val() || {};
+        const out = {};
+        Object.keys(lists).forEach(function (kk) { Object.keys(lists[kk]).forEach(function (code) { const e = lists[kk][code]; if (e && (!out[code] || (e.ts || 0) > (out[code].ts || 0))) out[code] = e; }); });
+        fn(out);
+      }, function () { fn({}); });
+    });
+    return function () { uns.forEach(function (u) { try { u(); } catch (e) { /* 무시 */ } }); };
   };
   FirebaseBus.prototype.exists = async function (code) {
     this.code = code;
@@ -125,6 +267,7 @@
     try {
       D.onDisconnect(this.ref('members/' + this.uid)).cancel();
       D.onDisconnect(this.ref('meta/leaderOnline')).cancel();
+      if (this.lobbyKeys) await this.unannounce();
       if (removeRoom) await D.remove(this.ref());
       else {
         await D.remove(this.ref('members/' + this.uid));
@@ -163,6 +306,34 @@
     this._save({ meta: meta, state: null, members: {} });
   };
   LocalBus.prototype.exists = async function (code) { this.code = code; return !!this._store(); };
+  LocalBus.prototype.rulesOk = async function () { return true; };
+  LocalBus.prototype.memberCount = async function (code) { try { const r = JSON.parse(localStorage.getItem('rhm.sync.local.' + code) || 'null'); return Object.keys((r && r.members) || {}).length; } catch (e) { return 0; } };
+  LocalBus.prototype.peek = async function (code) { try { const r = JSON.parse(localStorage.getItem('rhm.sync.local.' + code) || 'null'); return r && r.meta; } catch (e) { return null; } };
+  LocalBus.prototype.watchMeta = function (code, fn) {
+    const self = this; let last = '';
+    const tick = function () { self.peek(code).then(function (m) { const k = JSON.stringify(m); if (k !== last) { last = k; fn(m); } }); };
+    tick(); const t = setInterval(tick, 1500);
+    return function () { clearInterval(t); };
+  };
+  // 시험 모드: 같은 브라우저 = 같은 Wi-Fi로 침
+  LocalBus.prototype.announce = async function (keys, info) {
+    this.lobbyKeys = keys;
+    try { const L = JSON.parse(localStorage.getItem('rhm.sync.lobby') || '{}'); L[this.code] = { leader: this.uid, title: info.title, ts: Date.now() }; localStorage.setItem('rhm.sync.lobby', JSON.stringify(L)); } catch (e) { /* 무시 */ }
+  };
+  LocalBus.prototype.unannounce = async function () {
+    this.lobbyKeys = null;
+    try { const L = JSON.parse(localStorage.getItem('rhm.sync.lobby') || '{}'); delete L[this.code]; localStorage.setItem('rhm.sync.lobby', JSON.stringify(L)); } catch (e) { /* 무시 */ }
+  };
+  LocalBus.prototype.watchLobby = function (keys, fn) {
+    let last = '';
+    const tick = function () {
+      let L = {}; try { L = JSON.parse(localStorage.getItem('rhm.sync.lobby') || '{}'); } catch (e) { /* 무시 */ }
+      Object.keys(L).forEach(function (c) { let r = null; try { r = JSON.parse(localStorage.getItem('rhm.sync.local.' + c) || 'null'); } catch (e) { /* 무시 */ } if (!r || !r.meta || !r.meta.leaderOnline) delete L[c]; });
+      const k = JSON.stringify(L); if (k !== last) { last = k; fn(L); }
+    };
+    tick(); const t = setInterval(tick, 1500);
+    return function () { clearInterval(t); };
+  };
   LocalBus.prototype.open = function (code, h) {
     this.code = code; this.h = h;
     const self = this;
@@ -192,6 +363,7 @@
   LocalBus.prototype.close = async function (removeRoom) {
     const u = this.uid;
     clearInterval(this._beat);
+    if (this.code && this.lobbyKeys) await this.unannounce();
     if (this.code && this.ch) {
       if (removeRoom) { try { localStorage.removeItem('rhm.sync.local.' + this.code); } catch (e) { /* 무시 */ } this._send({ type: 'room', room: { meta: null, state: null, members: {} } }); }
       else this._room(function (r) { delete r.members[u]; if (r.meta && r.meta.leader === u) r.meta.leaderOnline = false; });
@@ -264,12 +436,27 @@
     };
   };
 
-  Sync.prototype.create = async function (name) {
+  // opts.want: 쓰고 싶은 번호 (다음에도 이 번호로 열기) — 다른 리더가 쓰고 있으면 새 번호
+  Sync.prototype.create = async function (name, opts) {
+    opts = opts || {};
     await this.bus.init();
-    let code = makeCode(), tries = 0;
+    const modern = await this.bus.rulesOk();
+    this.legacy = !modern;
+    const gen = modern ? makeCode : makeLegacyCode;
+    const want = modern && /^[0-9]{4}$/.test(opts.want || '') ? opts.want : '';
+    let code = want || gen(), tries = 0;
+    this.gotWanted = false;
     for (;;) {
-      try { await this.bus.create(code, { leader: this.bus.uid, leaderOnline: true, created: Date.now(), v: 1 }); break; }
-      catch (e) { if (++tries > 5) throw e; code = makeCode(); }
+      try {
+        const meta = { leader: this.bus.uid, leaderOnline: true, created: Date.now(), v: modern ? 2 : 1 };
+        if (modern) { meta.title = String(opts.title || name || '').slice(0, 24); meta.owner = this.bus.uid; }
+        await this.bus.create(code, meta);
+        this.gotWanted = !!want && code === want;
+        break;
+      } catch (e) {
+        if (++tries > 8) throw e;
+        code = gen();
+      }
     }
     this.code = code; this.role = 'leader'; this.offset = 0; this.target = 0; this.err = 0; this.rtt = 0;
     this.joinedAt = Date.now();
@@ -281,9 +468,13 @@
   };
 
   Sync.prototype.join = async function (code, name) {
-    code = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    code = normCode(code);
+    if (!code) throw new Error('no-room');
     await this.bus.init();
     if (!(await this.bus.exists(code))) throw new Error('no-room');
+    // 리더도 참가자도 없이 남은 방(갑자기 끊긴 뒤 남은 기록)에는 들어가지 않음
+    const m = await this.bus.peek(code);
+    if (m && m.leaderOnline === false && !(await this.bus.memberCount(code))) throw new Error('no-room');
     this.code = code; this.role = 'member'; this.samples = []; this.err = null;
     this.joinedAt = Date.now();
     this.bus.open(code, this._handlers());
@@ -402,5 +593,36 @@
     return this.role === 'member' && this.samples.length >= 6;
   };
 
-  global.RHSync = { create: function () { return new Sync(); }, makeCode: makeCode };
+  /* 같은 Wi-Fi · 최근 방 (합주 시작 전 화면) */
+  Sync.prototype.netKeys = netKeys;
+  Sync.prototype.announce = async function (title) {
+    if (this.role !== 'leader' || !this.code || !/^[0-9]{4}$/.test(this.code)) return false;
+    const keys = this.kind === 'local' ? ['local'] : await netKeys();
+    if (!keys.length || this.role !== 'leader') return false;
+    await this.bus.announce(keys, { title: String(title || '').slice(0, 24) });
+    return true;
+  };
+  Sync.prototype.unannounce = function () { return this.bus.lobbyKeys ? this.bus.unannounce() : Promise.resolve(); };
+  Sync.prototype.watchLobby = async function (fn) {
+    await this.bus.init();
+    const keys = this.kind === 'local' ? ['local'] : await netKeys();
+    if (!keys.length) { fn(null); return function () { /* 없음 */ }; }
+    const self = this;
+    return this.bus.watchLobby(keys, function (all) {
+      const now = Date.now(), out = [];
+      Object.keys(all || {}).forEach(function (code) {
+        const e = all[code];
+        if (!e || !/^[0-9]{4}$/.test(code) || (e.ts && now - e.ts > STALE) || e.leader === self.bus.uid) return;
+        out.push({ code: code, title: e.title || '', ts: e.ts || 0 });
+      });
+      out.sort(function (a, b) { return b.ts - a.ts; });
+      fn(out);
+    });
+  };
+  Sync.prototype.watchRoom = async function (code, fn) {
+    await this.bus.init();
+    return this.bus.watchMeta(code, fn);
+  };
+
+  global.RHSync = { create: function () { return new Sync(); }, makeCode: makeCode, normCode: normCode };
 })(window);

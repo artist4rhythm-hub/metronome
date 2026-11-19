@@ -4,16 +4,18 @@
     ".write": false,
     "rooms": {
       "$code": {
-        ".read": "auth != null && $code.length === 6",
+        ".read": "auth != null && ($code.length === 6 || $code.matches(/^[0-9]{4}$/))",
         ".write": "auth != null && data.exists() && data.child('meta/leader').val() === auth.uid && !newData.exists()",
 
         "meta": {
-          ".write": "auth != null && ((!data.exists() && newData.child('leader').val() === auth.uid) || (data.exists() && newData.exists() && (data.child('leader').val() === auth.uid || (data.child('leaderOnline').val() === false && root.child('rooms/' + $code + '/members/' + auth.uid).exists() && newData.child('leader').val() === auth.uid))))",
+          ".write": "auth != null && ((!data.exists() && newData.child('leader').val() === auth.uid) || (data.exists() && newData.exists() && (data.child('leader').val() === auth.uid || (data.child('leaderOnline').val() === false && newData.child('leader').val() === auth.uid && (root.child('rooms/' + $code + '/members/' + auth.uid).exists() || data.child('owner').val() === auth.uid || data.child('created').val() < now - 43200000)))))",
           ".validate": "newData.hasChildren(['leader', 'leaderOnline'])",
           "leader": { ".validate": "newData.isString() && newData.val().length < 64" },
           "leaderOnline": { ".validate": "newData.isBoolean()" },
           "created": { ".validate": "newData.isNumber()" },
           "v": { ".validate": "newData.isNumber()" },
+          "title": { ".validate": "newData.isString() && newData.val().length <= 24" },
+          "owner": { ".validate": "newData.isString() && newData.val().length < 64" },
           "$other": { ".validate": false }
         },
 
@@ -24,7 +26,7 @@
 
         "members": {
           "$uid": {
-            ".write": "auth != null && auth.uid === $uid",
+            ".write": "auth != null && (auth.uid === $uid || (!newData.exists() && root.child('rooms/' + $code + '/meta/leader').val() === auth.uid))",
             ".validate": "newData.hasChildren(['name', 'joined'])",
             "name": { ".validate": "newData.isString() && newData.val().length <= 20" },
             "joined": { ".validate": "newData.isNumber()" },
@@ -37,7 +39,7 @@
 
         "ping": {
           "$uid": {
-            ".write": "auth != null && auth.uid === $uid",
+            ".write": "auth != null && (auth.uid === $uid || (!newData.exists() && root.child('rooms/' + $code + '/meta/leader').val() === auth.uid))",
             ".validate": "newData.hasChildren(['t0', 'n']) && newData.child('t0').isNumber() && newData.child('n').isNumber()"
           }
         },
@@ -47,6 +49,20 @@
             ".write": "auth != null && (auth.uid === $uid || root.child('rooms/' + $code + '/meta/leader').val() === auth.uid)",
             ".validate": "!newData.exists() || newData.hasChildren(['t0', 't1', 't2', 'n'])"
           }
+        }
+      }
+    },
+
+    "lobby": {
+      "$net": {
+        ".read": "auth != null && $net.length >= 20",
+        "$code": {
+          ".write": "auth != null && $code.matches(/^[0-9]{4}$/) && (!data.exists() || data.child('leader').val() === auth.uid || data.child('ts').val() < now - 43200000 || root.child('rooms/' + $code + '/meta/leader').val() === auth.uid)",
+          ".validate": "newData.hasChildren(['leader', 'title', 'ts']) && newData.child('leader').val() === auth.uid && root.child('rooms/' + $code + '/meta/leader').val() === auth.uid",
+          "leader": { ".validate": "newData.isString() && newData.val().length < 64" },
+          "title": { ".validate": "newData.isString() && newData.val().length <= 24" },
+          "ts": { ".validate": "newData.isNumber() && newData.val() <= now + 60000" },
+          "$other": { ".validate": false }
         }
       }
     }
