@@ -1266,6 +1266,7 @@
   function bandSync() {
     if (band.sync) return band.sync;
     const sy = window.RHSync.create();
+    sy.ver = APP_VERSION;
     band.sync = sy;
     sy.on('role', function (role) {
       if (role === 'leader') { band.pubKey = JSON.stringify(bandSettings()); announceRoom(); }
@@ -1604,6 +1605,7 @@
     ul.innerHTML = '';
     const mm = sy.members || {}, meta = sy.meta || {};
     const ids = Object.keys(mm).sort(function (a, b) { return (mm[a].joined || 0) - (mm[b].joined || 0); });
+    const oldOnes = [];
     $('bandCount').textContent = ids.length;
     ids.forEach(function (id) {
       const m = mm[id];
@@ -1611,11 +1613,25 @@
       const nm = document.createElement('span'); nm.className = 'm-name'; nm.textContent = m.name || '기기';
       if (id === meta.leader) { const t = document.createElement('span'); t.className = 'm-tag lead'; t.textContent = '리더'; nm.appendChild(t); }
       if (id === sy.bus.uid) { const t = document.createElement('span'); t.className = 'm-tag me'; t.textContent = '나'; nm.appendChild(t); }
+      const ver = memberVer(m);
+      const vt = document.createElement('span');
+      vt.className = 'm-tag ' + (ver ? 'ver' : 'old');
+      vt.textContent = ver ? ver : '옛 버전';
+      if (!ver) oldOnes.push(m.name || '기기');
+      nm.appendChild(vt);
       const st = document.createElement('span'); st.className = 'm-state';
       st.textContent = id === meta.leader ? '기준 시계' : (m.err == null || m.err < 0 ? '맞추는 중…' : '±' + m.err + 'ms');
       li.appendChild(nm); li.appendChild(st);
       ul.appendChild(li);
     });
+    const warn = $('bandOldWarn');
+    warn.hidden = !oldOnes.length;
+    if (oldOnes.length) warn.textContent = '"옛 버전" 기기(' + oldOnes.join(', ') + ')는 박이 맞지 않거나 소리가 안 날 수 있어요. 그 기기에서 웹은 앱을 닫았다 다시 열고, Xcode로 설치한 앱은 다시 설치해 주세요 (버전은 설정 맨 위).';
+  }
+  // 참가 기기의 앱 버전 (1.8.1부터 역할 칸에 적힘). 없으면 1.8.0 이하
+  function memberVer(m) {
+    const r = /^[ml]([0-9]+\.[0-9]+\.[0-9]+)$/.exec((m && m.role) || '');
+    return r ? r[1] : '';
   }
 
   /* ---------- v1.8.0: 원탭 참가 ----------
@@ -2611,8 +2627,10 @@
   });
 
   /* ---------- v1.7.0: 버전 · 업데이트 소식 ---------- */
-  const APP_VERSION = '1.8.0';
+  const APP_VERSION = '1.8.1';
   const CHANGELOG = [
+    ['1.8.1', '2026-11-19', ['합주 리더 화면의 "참가한 기기"에 기기마다 앱 버전이 보여요. 옛 버전 기기는 빨간 표시와 함께 업데이트 방법을 알려 줘요.',
+      '앱(아이폰 · 안드로이드)에서 새 버전이 나오면 알려 드려요 (설정 맨 위).']],
     ['1.8.0', '2026-11-19', ['합주 참가가 쉬워졌어요. 같은 Wi-Fi에서 열린 방과 지난번에 들어간 방이 바로 떠서 "바로 들어가기" 한 번이면 돼요.',
       '방 번호가 숫자 4자리가 됐어요. 4번째 숫자를 누르면 바로 들어가요. 앱 안에서 QR도 찍을 수 있어요.',
       '리더는 "카톡으로 초대"로 링크를 보내고, "다음에도 이 번호로 열기"로 매번 같은 번호를 쓸 수 있어요.']],
@@ -2635,6 +2653,28 @@
         '<ul class="news-list">' + c[2].map(function (t) { return '<li>' + t + '</li>'; }).join('') + '</ul>';
     }).join('');
   }
+  /* v1.8.1: 앱(아이폰 · 안드로이드)은 설치한 버전 그대로 남아서, 웹에 새 버전이 올라오면 알려 줌
+     (웹은 열 때 저절로 바뀌니 필요 없음). 기기마다 버전이 다르면 합주 박이 안 맞을 수 있음 */
+  function cmpVer(a, b) {
+    const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number);
+    for (let i = 0; i < 3; i++) { const d = (x[i] || 0) - (y[i] || 0); if (d) return d > 0 ? 1 : -1; }
+    return 0;
+  }
+  let updToasted = false, updAt = 0;
+  function checkAppUpdate() {
+    if (!NATIVE || Date.now() - updAt < 30 * 60000) return;
+    updAt = Date.now();
+    try {
+      fetch(WEB_URL + 'version.json?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+        const v = j && j.version;
+        if (!v || !/^[0-9]+\.[0-9]+\.[0-9]+$/.test(v) || cmpVer(v, APP_VERSION) <= 0) return;
+        $('aboutUpd').hidden = false;
+        $('aboutUpd').textContent = '새 버전 ' + v + '이 나왔어요 · 앱을 업데이트해 주세요';
+        if (!updToasted) { updToasted = true; setTimeout(function () { toast('새 버전 ' + v + '이 나왔어요 · 앱을 업데이트해 주세요'); }, 2500); }
+      }, function () { /* 무시 */ });
+    } catch (e) { /* 무시 */ }
+  }
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) checkAppUpdate(); });
   function showNews(all) {
     $('newsTitle').textContent = all ? '업데이트 내역' : APP_VERSION + ' 업데이트 소식';
     $('newsBody').innerHTML = newsHtml(all ? CHANGELOG : CHANGELOG.slice(0, 1), true) +
@@ -3049,6 +3089,7 @@
   renderUi();
   renderPlay();
   checkNews();
+  checkAppUpdate();
 
   // 다른 파일(songs.js)과 같이 쓰는 것들
   window.RH = Object.assign(window.RH || {}, {

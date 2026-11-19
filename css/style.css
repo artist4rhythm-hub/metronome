@@ -1331,3 +1331,11 @@ body.band-member .dial, body.band-member .adjust, body.band-member #chipMeter, b
   .bj-digits { gap: 8px; }
 }
 .switch[hidden] { display: none; }
+/* v1.8.1: 참가 기기 버전 표시 */
+.m-tag.ver { font-variant-numeric: tabular-nums; }
+.m-tag.old { background: #FDECEA; border-color: #E5A39D; color: #B3261E; }
+.band-old-warn { margin: 8px 0 0; padding: 10px 12px; border-radius: 12px; background: #FDECEA; color: #8C1D18; font-size: 13px; line-height: 1.5; }
+.band-old-warn[hidden] { display: none; }
+:root[data-mode="dark"] .band-old-warn, :root[data-mode="dark"] .m-tag.old { background: #4A1F1C; color: #FFB4AB; border-color: #8C1D18; }
+.ac-upd { display: block; margin-top: 2px; font-size: 13px; font-weight: 700; color: #B3261E; }
+.ac-upd[hidden] { display: none; }

@@ -400,6 +400,11 @@
     this.kind = this.bus.kind;
   }
   Sync.prototype.on = function (ev, fn) { this.handlers[ev] = fn; };
+  // v1.8.1: 참가 기기 목록에 버전이 보이게, 역할 칸에 버전을 함께 적음 (예: "m1.8.1"). 1.8.0 이하는 "member" / "leader"
+  Sync.prototype._role = function (k) {
+    const v = String(this.ver || '');
+    return /^[0-9]+\.[0-9]+\.[0-9]+$/.test(v) && v.length <= 9 ? k + v : (k === 'l' ? 'leader' : 'member');
+  };
   Sync.prototype.emit = function (ev, a) { const f = this.handlers[ev]; if (f) try { f(a); } catch (e) { console.error(e); } };
   Sync.prototype.now = function () { return localNow() + this.offset; };
   Sync.prototype.localNow = localNow;
@@ -461,7 +466,7 @@
     this.code = code; this.role = 'leader'; this.offset = 0; this.target = 0; this.err = 0; this.rtt = 0;
     this.joinedAt = Date.now();
     this.bus.open(code, this._handlers());
-    await this.bus.setMember({ name: name, joined: this.joinedAt, role: 'leader', err: 0 });
+    await this.bus.setMember({ name: name, joined: this.joinedAt, role: this._role('l'), err: 0 });
     await this.bus.leaderPresence();
     this.emit('role', 'leader');
     return code;
@@ -478,7 +483,7 @@
     this.code = code; this.role = 'member'; this.samples = []; this.err = null;
     this.joinedAt = Date.now();
     this.bus.open(code, this._handlers());
-    await this.bus.setMember({ name: name, joined: this.joinedAt, role: 'member', err: -1 });
+    await this.bus.setMember({ name: name, joined: this.joinedAt, role: this._role('m'), err: -1 });
     this.emit('role', 'member');
     this._startPinging();
     return code;
@@ -526,7 +531,7 @@
     // 지금까지 맞춘 offset을 그대로 고정 → 시간표의 기준 시계가 바뀌지 않음
     this.target = this.offset; this.err = 0;
     this.bus.leaderPresence();
-    this.bus.updateMember({ role: 'leader', err: 0 });
+    this.bus.updateMember({ role: this._role('l'), err: 0 });
     this.emit('role', 'leader');
   };
 
