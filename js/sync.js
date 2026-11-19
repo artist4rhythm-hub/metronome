@@ -16,7 +16,10 @@
   const ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const params = new URLSearchParams(global.location.search);
   const SKEW = Number(params.get('syncskew') || 0); // 시험용: 이 기기 시계를 일부러 어긋나게
-  const localNow = function () { return performance.timeOrigin + performance.now() + SKEW; };
+  // v1.7.1: performance.timeOrigin은 iOS 15부터라, 없으면 지금 시각으로 한 번 계산해 둠 (iOS 14 이하 대비)
+  const ORIGIN = (typeof performance.timeOrigin === 'number' && isFinite(performance.timeOrigin) && performance.timeOrigin > 0)
+    ? performance.timeOrigin : Date.now() - performance.now();
+  const localNow = function () { return ORIGIN + performance.now() + SKEW; };
   const uid0 = function () { let s = ''; for (let i = 0; i < 20; i++) s += ALPHA[Math.floor(Math.random() * ALPHA.length)]; return s; };
   const makeCode = function () { let s = ''; for (let i = 0; i < 6; i++) s += ALPHA[Math.floor(Math.random() * ALPHA.length)]; return s; };
 
@@ -229,7 +232,7 @@
   Sync.prototype.now = function () { return localNow() + this.offset; };
   Sync.prototype.localNow = localNow;
   // 공통 시계(ms) → 이 기기의 performance.now() 기준(ms)
-  Sync.prototype.toPerf = function (shared) { return shared - this.offset - performance.timeOrigin - SKEW; };
+  Sync.prototype.toPerf = function (shared) { return shared - this.offset - ORIGIN - SKEW; };
   Sync.prototype.active = function () { return !!this.role; };
 
   Sync.prototype._handlers = function () {

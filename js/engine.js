@@ -84,9 +84,17 @@
     this.k = 0;
   }
 
+  // v1.7.1: 아이폰은 손으로 누르지 않은 순간(합주 신호가 네트워크로 왔을 때 등)에 resume()을 부르면
+  // 영영 끝나지 않을 수 있어서, 잠깐만 기다리고 넘어감. 'interrupted'(전화 · 다른 앱 소리)도 다시 깨움
+  function resumeSoon(ctx) {
+    if (!ctx || ctx.state === 'running' || ctx.state === 'closed') return Promise.resolve();
+    let p;
+    try { p = ctx.resume(); } catch (e) { return Promise.resolve(); }
+    return Promise.race([p && p.then ? p.catch(function () {}) : Promise.resolve(), new Promise(function (r) { setTimeout(r, 300); })]);
+  }
   Engine.prototype.init = async function () {
     if (this.ctx) {
-      if (this.ctx.state === 'suspended') await this.ctx.resume();
+      await resumeSoon(this.ctx);
       return;
     }
     const AC = global.AudioContext || global.webkitAudioContext;
@@ -107,7 +115,7 @@
     s.start(0);
     const self = this;
     this.timer = makeTimer(this.interval, function () { self.tick(); });
-    if (this.ctx.state === 'suspended') await this.ctx.resume();
+    await resumeSoon(this.ctx);
   };
 
   Engine.prototype.set = function (patch) {

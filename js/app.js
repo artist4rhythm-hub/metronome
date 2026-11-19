@@ -1290,21 +1290,48 @@
     return sy;
   }
 
-  /* 공통 시계(ms) → 이 기기 오디오 시각(초). 출력 지연은 getOutputTimestamp로, 블루투스 같은 나머지는 bandLat로 */
-  function ctxDiff() {
-    const ctx = engine.ctx;
-    const nowMs = performance.now();
-    if (band.diff != null && nowMs - band.diffAt < 250) return band.diff;
-    let d = null;
+  /* 공통 시계(ms) → 이 기기 오디오 시각(초)
+     v1.7.1: 아이폰(웹킷) 대응
+     - 아이폰은 getOutputTimestamp가 엉터리 값(contextTime ≈ 0.001)을 줘서, 그대로 쓰면 박 시각이 몇 초씩 틀어짐
+       → 리더는 소리가 안 나고, 참가자는 박이 뒤죽박죽이었던 원인. 이제 값이 말이 될 때만 씀
+     - 아이폰은 currentTime이 덩어리(약 20~40ms)로 갱신돼서, 읽을 때마다 값이 들쭉날쭉
+       → 최근 2초 동안 읽은 값의 "위쪽 끝"을 기준으로 삼고, 한 번 정하면 아주 천천히만 따라감 (박 간격이 흔들리지 않게) */
+  function validLatency(x) { return typeof x === 'number' && isFinite(x) && x > 0 && x < 0.5 ? x : 0; }
+  function audioClockSample() {
+    const ctx = engine.ctx, nowMs = performance.now(), ct = ctx.currentTime;
     try {
       const ts = ctx.getOutputTimestamp && ctx.getOutputTimestamp();
-      if (ts && ts.contextTime > 0 && ts.performanceTime > 0) d = ts.contextTime - ts.performanceTime / 1000;
+      // 소리가 실제로 나가는 시각까지 알려 주는 브라우저(크롬 · 안드로이드)만 — 값이 상식적인지 확인
+      if (ts && isFinite(ts.contextTime) && isFinite(ts.performanceTime) &&
+          ts.contextTime > ct - 0.5 && ts.contextTime <= ct + 0.05 &&
+          ts.performanceTime > nowMs - 1000 && ts.performanceTime <= nowMs + 50 && ts.contextTime > 0.05) {
+        return { d: ts.contextTime - ts.performanceTime / 1000, exact: true };
+      }
     } catch (e) { /* 무시 */ }
-    if (d == null || !isFinite(d)) d = (ctx.currentTime - (ctx.outputLatency || ctx.baseLatency || 0)) - nowMs / 1000;
-    if (band.diff == null || Math.abs(d - band.diff) > 0.03) band.diff = d;
-    else band.diff += (d - band.diff) * 0.1;
-    band.diffAt = nowMs;
-    return band.diff;
+    return { d: ct - nowMs / 1000 - validLatency(ctx.outputLatency || ctx.baseLatency), exact: false };
+  }
+  function ctxDiff() {
+    const nowMs = performance.now();
+    const c = band.clk || (band.clk = { est: null, win: [], at: 0, born: nowMs });
+    if (c.est != null && nowMs - c.at < 20) return c.est;
+    const smp = audioClockSample();
+    c.win.push({ at: nowMs, d: smp.d });
+    while (c.win.length && c.win[0].at < nowMs - 2000) c.win.shift();
+    // 정확한 값(크롬)은 가운데 값, 들쭉날쭉한 값(아이폰)은 위쪽 끝
+    let ref;
+    if (smp.exact) { const ds = c.win.map(function (x) { return x.d; }).sort(function (a, b) { return a - b; }); ref = ds[Math.floor(ds.length / 2)]; }
+    else { ref = -Infinity; c.win.forEach(function (x) { if (x.d > ref) ref = x.d; }); }
+    // 처음 1초(첫 박 전 준비 시간)는 바로 맞추고, 소리가 끊겼다 다시 켜진 경우(크게 틀어짐)도 바로 맞춤
+    if (c.est == null || nowMs - c.born < 1000 || Math.abs(ref - c.est) > 0.08) c.est = ref;
+    else {
+      // 아주 천천히 따라감: 1초에 최대 2ms
+      const dt = Math.max(0, Math.min(0.25, (nowMs - c.at) / 1000));
+      const step = 0.002 * dt;
+      c.est += Math.max(-step, Math.min(step, ref - c.est));
+    }
+    c.at = nowMs;
+    band.diff = c.est;
+    return c.est;
   }
   function toCtx(sharedMs) {
     return band.sync.toPerf(sharedMs) / 1000 + ctxDiff() - (S.bandLat || 0) / 1000;
@@ -1372,11 +1399,28 @@
     return k;
   }
 
+  // v1.7.1: 소리가 잠겨 있으면(아이폰: 한동안 안 눌렀거나 전화가 왔다 간 뒤) 화면을 한 번 누르면 바로 따라 울림
+  let bandUnlockWait = false;
+  function waitTapToUnlock() {
+    if (bandUnlockWait) return;
+    bandUnlockWait = true;
+    toast('화면을 한 번 눌러 주세요 — 소리를 켜고 합주를 따라가요');
+    const go = function () {
+      document.removeEventListener('pointerdown', go, true);
+      document.removeEventListener('touchend', go, true);
+      bandUnlockWait = false;
+      engine.init().then(function () { if (engine.ctx && engine.ctx.state === 'running') startBandEngine(); });
+    };
+    document.addEventListener('pointerdown', go, true);
+    document.addEventListener('touchend', go, true);
+  }
   async function startBandEngine() {
     const sy = band.sync, st = sy && sy.state;
     if (!st || !st.running || !sy.isReady()) return;
     if (!(await ensureAudio())) return;
+    if (engine.ctx && engine.ctx.state !== 'running') { waitTapToUnlock(); return; }
     band.diff = null;
+    band.clk = null;
     band.curRun = st.run;
     const k = firstBeatAfter(st, sy.now() + 150);
     engine.startFollow(bandBeat, k, onBandEnd);
@@ -1811,6 +1855,8 @@
   }
   document.addEventListener('visibilitychange', function () {
     if (document.visibilityState === 'visible' && engine.playing) requestWake();
+    // 다시 화면으로 돌아오면 멈춰 있던 소리를 깨움 (합주 시계 기준은 ctxDiff가 다시 맞춤)
+    if (document.visibilityState === 'visible' && engine.ctx && engine.ctx.state !== 'running') engine.init().catch(function () {});
   });
 
   async function ensureAudio() {
@@ -2258,8 +2304,10 @@
   });
 
   /* ---------- v1.7.0: 버전 · 업데이트 소식 ---------- */
-  const APP_VERSION = '1.7.0';
+  const APP_VERSION = '1.7.1';
   const CHANGELOG = [
+    ['1.7.1', '2026-11-19', ['합주 모드를 아이폰에서 고쳤어요. 리더 소리가 안 나거나, 참가한 기기의 박이 뒤죽박죽이던 문제예요.',
+      '참가한 기기의 소리가 잠겨 있으면 "화면을 한 번 눌러 주세요"라고 알려 주고, 누르면 바로 따라 울려요.']],
     ['1.7.0', '2026-11-19', ['심플 화면이 생겼어요. 머리줄 왼쪽 "기본 | 심플"로 바꿔요. 박마다 큰 원이 차오르고, 숫자를 밀어서 빠르기를 바꿔요.',
       '설정 맨 위에서 지금 버전과 업데이트 내역을 볼 수 있어요. 새 버전이 되면 이렇게 소식으로 알려 드려요.']],
     ['1.6.4', '2026-11-19', ['연습 모드를 켜고 끄기 쉬워졌어요. 연습 설정 맨 위 스위치, 홈 화면 연습 계기판의 "끄기" 버튼.']],
